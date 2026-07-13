@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Panel - SHREE RAAM MOBAILE</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="/css/style.css" rel="stylesheet">
+</head>
+<body>
+<nav class="navbar">
+  <a href="/" class="navbar-brand"><span style="font-size:1.6rem;">📱</span> SHREE RAAM MOBAILE</a>
+  <div class="navbar-menu">
+    <span id="userName" style="margin-right:1rem;"></span>
+    <button class="btn btn-sm btn-outline-danger" onclick="Auth.logout()">Logout</button>
+  </div>
+</nav>
+
+<div class="dashboard">
+  <aside class="sidebar">
+    <div class="sidebar-header">Admin Panel</div>
+    <ul class="sidebar-menu" id="sidebarMenu">
+      <li><a href="#" data-page="dashboard" class="active">📊 Dashboard</a></li>
+      <li><a href="#" data-page="pickup">📦 Pickup & Process</a></li>
+      <li><a href="#" data-page="customers">👥 Customers</a></li>
+      <li><a href="#" data-page="repairs">🔨 All Repairs</a></li>
+      <li><a href="#" data-page="technicians">🛠️ Technicians</a></li>
+      <li><a href="#" data-page="notifications">🔔 Notifications</a></li>
+      <li><a href="#" data-page="reports">📈 Reports</a></li>
+    </ul>
+  </aside>
+  <main class="main-content" id="mainContent"><div class="spinner"></div></main>
+</div>
+
+<script src="/js/main.js"></script>
+<script>
+const user = API.getUser();
+if (!user || user.role !== 'admin') window.location.href = '/login/admin';
+document.getElementById('userName').textContent = '🔧 ' + user.name;
+
+document.getElementById('sidebarMenu').addEventListener('click', (e) => {
+  const link = e.target.closest('a');
+  if (!link) return;
+  e.preventDefault();
+  document.querySelectorAll('#sidebarMenu a').forEach(a => a.classList.remove('active'));
+  link.classList.add('active');
+  loadPage(link.dataset.page);
+});
+
+async function loadPage(page) {
+  const c = document.getElementById('mainContent');
+  UI.showLoading(c);
+
+  switch(page) {
+    case 'dashboard': await loadDashboard(c); break;
+    case 'pickup': await loadPickup(c); break;
+    case 'customers': await loadCustomers(c); break;
+    case 'repairs': await loadRepairs(c); break;
+    case 'technicians': await loadTechs(c); break;
+    case 'notifications': await loadNotifs(c); break;
+    case 'reports': await loadReports(c); break;
+    default: c.innerHTML = '<p>Page not found</p>';
+  }
+}
+
+async function loadDashboard(c) {
+  const res = await API.get('/admin/dashboard');
+  if (!res.success) { c.innerHTML = '<p>Error</p>'; return; }
+  const s = res.stats;
+  c.innerHTML = `
+    <h4 style="color:var(--primary-dark);">📊 Welcome, ${user.name}!</h4>
+    <div class="dashboard-stats">
+      <div class="stat-card"><div class="stat-icon" style="background:var(--gradient-2);">🔨</div><div class="stat-info"><h4>${s.totalRepairs}</h4><p>Total Repairs</p></div></div>
+      <div class="stat-card"><div class="stat-icon" style="background:var(--gradient-4);">⏳</div><div class="stat-info"><h4>${s.pendingRepairs}</h4><p>Pending Repairs</p></div></div>
+      <div class="stat-card"><div class="stat-icon" style="background:var(--gradient-3);">✅</div><div class="stat-info"><h4>${s.completedRepairs||0}</h4><p>Completed</p></div></div>
+      <div class="stat-card"><div class="stat-icon" style="background:var(--gradient-1);">📦</div><div class="stat-info"><h4>${s.pickupRequests||0}</h4><p>Pickup Requests</p></div></div>
+      <div class="stat-card"><div class="stat-icon" style="background:var(--gradient-2);">💰</div><div class="stat-info"><h4>${UI.formatCurrency(s.todayCollection||0)}</h4><p>Today Collection</p></div></div>
+      <div class="stat-card"><div class="stat-icon" style="background:var(--gradient-3);">📅</div><div class="stat-info"><h4>${UI.formatCurrency(s.monthlyIncome||0)}</h4><p>Monthly Income</p></div></div>
+      <div class="stat-card"><div class="stat-icon" style="background:var(--gradient-4);">🎁</div><div class="stat-info"><h4>${UI.formatCurrency(s.cashback||0)}</h4><p>Cashback</p></div></div>
+      <div class="stat-card"><div class="stat-icon" style="background:var(--gradient-5);">💼</div><div class="stat-info"><h4>${UI.formatCurrency(s.commission||0)}</h4><p>Commission</p></div></div>
+    </div>
+    <div class="card"><div class="card-header"><h5>Recent Repairs</h5></div>
+    <div class="card-body" style="overflow-x:auto"><table class="table"><thead><tr><th>Tracking</th><th>Customer</th><th>Device</th><th>Tech</th><th>Status</th><th>Date</th></tr></thead>
+    <tbody>${s.recentRepairs?.map(r => `<tr><td><strong>${r.tracking_number}</strong></td><td>${r.customer}</td><td>${r.device_type} ${r.brand}</td><td>${r.tech||'Unassigned'}</td><td>${UI.getStatusBadge(r.status)}</td><td>${UI.formatDate(r.created_at)}</td></tr>`).join('')}</tbody></table></div></div>
+  `;
+}
+
+// ============ PICKUP & PROCESS ============
+async function loadPickup(c) {
+  c.innerHTML = `
+    <h4 style="color:var(--primary-dark);">📦 Pickup & Process Repair</h4>
+    <div class="card mb-3"><div class="card-body">
+      <h5>🔍 Search Tracking Number</h5>
+      <div class="input-group">
+        <input type="text" class="form-control" id="pickupTracking" placeholder="Enter Tracking Number (e.g., SRM-2026-000001)">
+        <button class="btn btn-primary" onclick="searchTracking()">Search</button>
+      </div>
+      <div id="trackingResult" class="mt-3"></div>
+    </div></div>
+  `;
+}
+
+window.searchTracking = async function() {
+  const tn = document.getElementById('pickupTracking').value.trim();
+  if (!tn) { UI.showToast('Enter tracking number', 'error'); return; }
+  const res = await API.get('/repair/customer/' + tn);
+  const cr = document.getElementById('trackingResult');
+  if (!res.success || !res.repair) { cr.innerHTML = '<div class="alert alert-danger">Tracking number not found</div>'; return; }
+  const r = res.repair;
+  cr.innerHTML = `
+    <div class="card"><div class="card-body">
+      <h5>📋 ${r.tracking_number}</h5>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+        <div><strong>Customer:</strong> ${r.name||'N/A'}</div>
+        <div><strong>Status:</strong> ${UI.getStatusBadge(r.status)}</div>
+        <div><strong>Device:</strong> ${r.device_type} - ${r.brand} ${r.model||''}</div>
+        <div><strong>Issue:</strong> ${r.issue_description||'N/A'}</div>
+      </div>
+      <hr>
+      <h6>🔧 Admin Actions</h6>
+      <form id="pickupForm">
+        <input type="hidden" id="pTrackingNumber" value="${r.tracking_number}">
+        <div class="form-group"><label>Upload Device Photo</label><input type="file" class="form-control" id="pDevicePhoto" accept="image/*"></div>
+        <div class="form-group"><label>Device Condition</label>
+          <select class="form-control" id="pCondition">
+            <option value="">-- Select --</option>
+            <option>Dead</option><option>Physical Damage</option><option>ON Condition</option>
+            <option>Water Damage</option><option>Display Broken</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Problem Notes</label><textarea class="form-control" id="pNotes" rows="2" placeholder="Add your observations..."></textarea></div>
+        <div class="form-group"><label>Capture Customer Selfie</label><input type="file" class="form-control" id="pSelfie" accept="image/*" capture="user"></div>
+        <div class="form-group"><label>GPS Location</label><input class="form-control" id="pGPS" placeholder="Click to capture GPS" readonly>
+          <button type="button" class="btn btn-sm btn-info mt-1" onclick="captureGPS()">📍 Capture GPS Location</button>
+        </div>
+        <button type="submit" class="btn btn-success btn-block" style="font-size:1.1rem;padding:0.8rem;">📦 Pickup Device - Submit</button>
+      </form>
+    </div></div>
+  `;
+
+  document.getElementById('pickupForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const trackingNumber = document.getElementById('pTrackingNumber').value;
+    const condition = document.getElementById('pCondition').value;
+    const notes = document.getElementById('pNotes').value;
+    const gps = document.getElementById('pGPS').value;
+    const res2 = await API.put('/admin/pickup', {
+      tracking_number: trackingNumber,
+      device_condition: condition,
+      notes: notes,
+      gps_location: gps,
+      admin_name: user.name
+    });
+    if (res2.success) {
+      UI.showToast('✅ Device Pickup Successful! Notifications sent to Master & Customer.', 'success');
+      setTimeout(() => loadPage('pickup'), 2000);
+    } else UI.showToast(res2.message, 'error');
+  });
+};
+
+window.captureGPS = function() {
+  if (navigator.geolocation) {
+    UI.showToast('📍 Getting GPS location...', 'info');
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const loc = pos.coords.latitude.toFixed(6) + ', ' + pos.coords.longitude.toFixed(6);
+        document.getElementById('pGPS').value = loc;
+        UI.showToast('GPS captured: ' + loc, 'success');
+      },
+      err => { UI.showToast('GPS error: ' + err.message, 'error'); document.getElementById('pGPS').value = 'GPS unavailable'; }
+    );
+  } else {
+    document.getElementById('pGPS').value = 'Geolocation not supported';
+  }
+};
+
+async function loadCustomers(c) {
+  const res = await API.get('/admin/customers');
+  c.innerHTML = `<h4 style="color:var(--primary-dark);">👥 All Customers</h4>
+    <div class="card"><div class="card-body" style="overflow-x:auto"><table class="table"><thead><tr><th>Name</th><th>Email</th><th>Mobile</th><th>City</th><th>Repairs</th><th>Status</th></tr></thead>
+    <tbody>${res.customers?.map(cu => `<tr><td>${cu.name}</td><td>${cu.email||'-'}</td><td>${cu.mobile}</td><td>${cu.city||'-'}</td><td>${cu.total_repairs}</td><td>${UI.getStatusBadge(cu.status)}</td></tr>`).join('')}</tbody></table></div></div>`;
+}
+
+async function loadRepairs(c) {
+  const res = await API.get('/admin/repairs');
+  c.innerHTML = `<h4 style="color:var(--primary-dark);">🔨 All Repairs</h4>
+    <div class="card"><div class="card-body" style="overflow-x:auto"><table class="table"><thead><tr><th>Tracking</th><th>Customer</th><th>Device</th><th>Brand</th><th>Status</th><th>Tech</th><th>Date</th></tr></thead>
+    <tbody>${res.repairs?.map(r => `<tr><td><strong>${r.tracking_number}</strong></td><td>${r.customer_name}</td><td>${r.device_type}</td><td>${r.brand}</td><td>${UI.getStatusBadge(r.status)}</td><td>${r.tech_name||'Unassigned'}</td><td>${UI.formatDate(r.created_at)}</td></tr>`).join('')}</tbody></table></div></div>`;
+}
+
+async function loadTechs(c) {
+  const res = await API.get('/admin/technicians');
+  c.innerHTML = `<h4 style="color:var(--primary-dark);">🛠️ Technicians</h4>
+    <div class="card"><div class="card-body" style="overflow-x:auto"><table class="table"><thead><tr><th>Name</th><th>Email</th><th>Specialization</th><th>Repairs</th><th>Rating</th><th>Status</th></tr></thead>
+    <tbody>${res.technicians?.map(t => `<tr><td>${t.name}</td><td>${t.email}</td><td>${t.specialization||'-'}</td><td>${t.total_repairs}</td><td>${t.rating}</td><td>${UI.getStatusBadge(t.status)}</td></tr>`).join('')}</tbody></table></div></div>`;
+}
+
+async function loadNotifs(c) {
+  const res = await API.get('/notification/all');
+  c.innerHTML = `<h4 style="color:var(--primary-dark);">🔔 Notifications</h4><div style="display:flex;justify-content:space-between;margin-bottom:1rem;"><h5></h5><button class="btn btn-success" onclick="sendNotif()">+ Send Notification</button></div>
+    <div class="card"><div class="card-body"><table class="table"><thead><tr><th>Title</th><th>Message</th><th>Role</th><th>Date</th></tr></thead><tbody>${res.notifications?.map(n => `<tr><td>${n.title}</td><td>${n.message?.substring(0,80)}</td><td>${n.user_role}</td><td>${UI.formatDate(n.created_at)}</td></tr>`).join('')}</tbody></table></div></div>`;
+}
+
+window.sendNotif = function() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay show';
+  modal.innerHTML = `
+    <div class="modal-content" style="max-width:450px;"><div class="modal-header"><h5>Send Notification</h5><button class="btn btn-sm btn-secondary" onclick="this.closest('.modal-overlay').remove()">✕</button></div>
+    <div class="modal-body"><form id="notifForm">
+      <div class="form-group"><label>Target Role</label><select class="form-control" id="nRole"><option value="all">All</option><option value="customer">Customers</option><option value="technician">Technicians</option></select></div>
+      <div class="form-group"><label>Title *</label><input class="form-control" id="nTitle" required></div>
+      <div class="form-group"><label>Message *</label><textarea class="form-control" id="nMsg" required></textarea></div>
+      <button type="submit" class="btn btn-success btn-block">Send</button>
+    </form></div></div>`;
+  document.body.appendChild(modal);
+  document.getElementById('notifForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const res = await API.post('/notification/send', { user_role: document.getElementById('nRole').value, title: document.getElementById('nTitle').value, message: document.getElementById('nMsg').value, type: 'system', sent_via: 'system' });
+    if (res.success) { modal.remove(); loadPage('notifications'); UI.showToast('Sent!', 'success'); }
+    else UI.showToast(res.message, 'error');
+  });
+};
+
+async function loadReports(c) {
+  c.innerHTML = `
+    <h4 style="color:var(--primary-dark);">📈 Reports & Exports</h4>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:1rem;">
+      <div class="card"><div class="card-body text-center"><h5>📋 Repair Report</h5><button class="btn btn-primary" onclick="window.open('/api/report/export/repairs','_blank')">Export Excel</button></div></div>
+      <div class="card"><div class="card-body text-center"><h5>💰 Revenue Report</h5><button class="btn btn-success" onclick="window.open('/api/report/export/revenue','_blank')">Export Excel</button></div></div>
+      <div class="card"><div class="card-body text-center"><h5>👥 Customer Report</h5><button class="btn btn-info" onclick="window.open('/api/report/export/customers','_blank')">Export Excel</button></div></div>
+      <div class="card"><div class="card-body text-center"><h5>🛠️ Technician Report</h5><button class="btn btn-warning" onclick="window.open('/api/report/export/technicians','_blank')">Export Excel</button></div></div>
+    </div>`;
+}
+
+loadPage('dashboard');
+</script>
+</body>
+</html>

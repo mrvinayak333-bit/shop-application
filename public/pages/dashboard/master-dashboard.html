@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Master Panel - SHREE RAAM MOBAILE</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="/css/style.css" rel="stylesheet">
+</head>
+<body>
+<nav class="navbar">
+  <a href="/" class="navbar-brand"><span style="font-size:1.6rem;">📱</span> SHREE RAAM MOBAILE</a>
+  <div class="navbar-menu">
+    <span id="userName" style="margin-right:1rem;"></span>
+    <button class="btn btn-sm btn-outline-danger" onclick="Auth.logout()">Logout</button>
+  </div>
+</nav>
+
+<div class="dashboard">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">Dashboard</div>
+    <ul class="sidebar-menu" id="sidebarMenu">
+      <li><a href="#" data-page="overview" class="active">📊 Overview</a></li>
+      <li><a href="#" data-page="customers">👥 Customers</a></li>
+      <li><a href="#" data-page="students">🎓 Students</a></li>
+      <li><a href="#" data-page="admins">🔧 Admins</a></li>
+      <li><a href="#" data-page="technicians">🛠️ Technicians</a></li>
+      <li><a href="#" data-page="gallery">🖼️ Gallery Management</a></li>
+      <li><a href="#" data-page="courses">📚 Course Management</a></li>
+      <li><a href="#" data-page="certificates">📜 Certificates</a></li>
+      <li><a href="#" data-page="repairs">🔨 Repair Management</a></li>
+      <li><a href="#" data-page="invoices">💰 Invoices & Payments</a></li>
+      <li><a href="#" data-page="notifications">🔔 Notifications</a></li>
+      <li><a href="#" data-page="reports">📈 Reports & Export</a></li>
+      <li><a href="#" data-page="settings">⚙️ Settings</a></li>
+    </ul>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content" id="mainContent">
+    <div class="spinner"></div>
+  </main>
+</div>
+
+<script src="/js/main.js"></script>
+<script>
+const user = API.getUser();
+if (!user || user.role !== 'master') window.location.href = '/login/master';
+document.getElementById('userName').textContent = '👑 ' + user.name;
+
+let currentPage = 'overview';
+
+// Sidebar navigation
+document.getElementById('sidebarMenu').addEventListener('click', (e) => {
+  const link = e.target.closest('a');
+  if (!link) return;
+  e.preventDefault();
+  document.querySelectorAll('#sidebarMenu a').forEach(a => a.classList.remove('active'));
+  link.classList.add('active');
+  currentPage = link.dataset.page;
+  loadPage(currentPage);
+});
+
+// Page loader
+async function loadPage(page) {
+  const content = document.getElementById('mainContent');
+  UI.showLoading(content);
+
+  switch(page) {
+    case 'overview': await loadOverview(content); break;
+    case 'customers': await loadCustomers(content); break;
+    case 'students': await loadStudents(content); break;
+    case 'admins': await loadAdmins(content); break;
+    case 'technicians': await loadTechnicians(content); break;
+    case 'gallery': await loadGallery(content); break;
+    case 'courses': await loadCourses(content); break;
+    case 'certificates': await loadCertificates(content); break;
+    case 'repairs': await loadRepairs(content); break;
+    case 'invoices': await loadInvoices(content); break;
+    case 'notifications': await loadNotifications(content); break;
+    case 'reports': await loadReports(content); break;
+    case 'settings': await loadSettings(content); break;
+    default: content.innerHTML = '<p>Page not found</p>';
+  }
+}
+
+// ============ OVERVIEW ============
+async function loadOverview(container) {
+  const res = await API.get('/master/dashboard');
+  if (!res.success) { container.innerHTML = '<p>Error loading dashboard</p>'; return; }
+  const s = res.stats;
+  container.innerHTML = `
+    <h4 class="mb-3">📊 Master Dashboard</h4>
+    <div class="dashboard-stats">
+      <div class="stat-card"><div class="stat-icon" style="background:var(--gradient-2);">👥</div><div class="stat-info"><h4>${s.totalCustomers}</h4><p>Customers</p></div></div>
+      <div class="stat-card"><div class="stat-icon" style="background:var(--gradient-3);">🎓</div><div class="stat-info"><h4>${s.totalStudents}</h4><p>Students</p></div></div>
+      <div class="stat-card"><div class="stat-icon" style="background:var(--gradient-1);">🔧</div><div class="stat-info"><h4>${s.totalAdmins}</h4><p>Admins</p></div></div>
+      <div class="stat-card"><div class="stat-icon" style="background:var(--gradient-4);">🛠️</div><div class="stat-info"><h4>${s.totalTechnicians}</h4><p>Technicians</p></div></div>
+      <div class="stat-card"><div class="stat-icon" style="background:var(--gradient-5);">🔨</div><div class="stat-info"><h4>${s.totalRepairs}</h4><p>Total Repairs</p></div></div>
+      <div class="stat-card"><div class="stat-icon" style="background:var(--gradient-2);">⏳</div><div class="stat-info"><h4>${s.pendingRepairs}</h4><p>Pending</p></div></div>
+      <div class="stat-card"><div class="stat-icon" style="background:var(--gradient-3);">💰</div><div class="stat-info"><h4>${UI.formatCurrency(s.totalRevenue)}</h4><p>Revenue</p></div></div>
+      <div class="stat-card"><div class="stat-icon" style="background:var(--gradient-1);">📚</div><div class="stat-info"><h4>${s.totalCourses}</h4><p>Courses</p></div></div>
+    </div>
+    <div class="card"><div class="card-header"><h5>Recent Repairs</h5></div>
+    <div class="card-body"><table class="table"><thead><tr><th>Tracking</th><th>Customer</th><th>Device</th><th>Status</th><th>Date</th></tr></thead>
+    <tbody>${(s.recentRepairs||[]).map(r => `<tr><td>${r.tracking_number}</td><td>${r.customer_name}</td><td>${r.brand} ${r.device_type}</td><td>${UI.getStatusBadge(r.status)}</td><td>${UI.formatDate(r.created_at)}</td></tr>`).join('')}</tbody></table></div></div>
+  `;
+}
+
+// ============ CUSTOMERS ============
+async function loadCustomers(container) {
+  const res = await API.get('/master/customers');
+  if (!res.success) { container.innerHTML = '<p>Error</p>'; return; }
+  container.innerHTML = `
+    <h4>👥 Customer Management</h4>
+    <div class="card"><div class="card-header"><h5>All Customers (${res.customers.length})</h5></div>
+    <div class="card-body" style="overflow-x:auto"><table class="table"><thead><tr><th>Name</th><th>Email</th><th>Mobile</th><th>City</th><th>Repairs</th><th>Status</th><th>Joined</th></tr></thead>
+    <tbody>${res.customers.map(c => `<tr><td>${c.name}</td><td>${c.email||'-'}</td><td>${c.mobile}</td><td>${c.city||'-'}</td><td>${c.total_repairs}</td><td>${UI.getStatusBadge(c.status)}</td><td>${UI.formatDate(c.created_at)}</td></tr>`).join('')}</tbody></table></div></div>
+  `;
+}
+
+// ============ STUDENTS ============
+async function loadStudents(container) {
+  const res = await API.get('/master/students');
+  if (!res.success) { container.innerHTML = '<p>Error</p>'; return; }
+  container.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+      <h4>🎓 Student Management</h4>
+      <button class="btn btn-success" onclick="showAddStudent()">+ Add Student</button>
+    </div>
+    <div class="card"><div class="card-header"><h5>All Students (${res.students.length})</h5></div>
+    <div class="card-body" style="overflow-x:auto"><table class="table"><thead><tr><th>Student ID</th><th>Name</th><th>Email</th><th>Mobile</th><th>Course</th><th>Batch</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>${res.students.map(s => `<tr><td><strong>${s.student_id}</strong></td><td>${s.name}</td><td>${s.email||'-'}</td><td>${s.mobile||'-'}</td><td>${s.course||'-'}</td><td>${s.batch||'-'}</td><td>${UI.getStatusBadge(s.status)}</td><td><button class="btn btn-sm btn-danger" onclick="deleteStudent(${s.id})">Delete</button></td></tr>`).join('')}</tbody></table></div></div>
+  `;
+}
+
+function showAddStudent() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay show';
+  modal.innerHTML = `
+    <div class="modal-content" style="max-width:500px;">
+      <div class="modal-header"><h5>Add New Student</h5><button class="btn btn-sm btn-secondary" onclick="this.closest('.modal-overlay').remove()">✕</button></div>
+      <div class="modal-body">
+        <form id="addStudentForm">
+          <div class="form-group"><label>Student ID *</label><input class="form-control" id="sStudentId" required></div>
+          <div class="form-group"><label>Name *</label><input class="form-control" id="sName" required></div>
+          <div class="form-group"><label>Password *</label><input type="password" class="form-control" id="sPassword" required></div>
+          <div class="form-group"><label>Email</label><input type="email" class="form-control" id="sEmail"></div>
+          <div class="form-group"><label>Mobile</label><input class="form-control" id="sMobile"></div>
+          <div class="form-group"><label>Course</label><input class="form-control" id="sCourse"></div>
+          <div class="form-group"><label>Batch</label><input class="form-control" id="sBatch"></div>
+          <div id="studentError"></div>
+          <button type="submit" class="btn btn-success btn-block">Create Student</button>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  document.getElementById('addStudentForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const res = await API.post('/master/students', {
+      student_id: document.getElementById('sStudentId').value,
+      name: document.getElementById('sName').value,
+      password: document.getElementById('sPassword').value,
+      email: document.getElementById('sEmail').value,
+      mobile: document.getElementById('sMobile').value,
+      course: document.getElementById('sCourse').value,
+      batch: document.getElementById('sBatch').value
+    });
+    if (res.success) { modal.remove(); loadPage('students'); UI.showToast('Student created!', 'success'); }
+    else document.getElementById('studentError').innerHTML = `<div class="alert alert-danger">${res.message}</div>`;
+  });
+}
+
+async function deleteStudent(id) {
+  if (!confirm('Delete this student?')) return;
+  const res = await API.delete(`/master/students/${id}`);
+  if (res.success) { loadPage('students'); UI.showToast('Student deleted', 'success'); }
+  else UI.showToast(res.message, 'error');
+}
+
+// ============ ADMINS ============
+async function loadAdmins(container) {
+  const res = await API.get('/master/admins');
+  if (!res.success) { container.innerHTML = '<p>Error</p>'; return; }
+  container.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+    <h4>🔧 Admin Management</h4><button class="btn btn-success" onclick="showAddAdmin()">+ Add Admin</button></div>
+    <div class="card"><div class="card-body"><table class="table"><thead><tr><th>Name</th><th>Email</th><th>Mobile</th><th>Status</th><th>Last Login</th><th>Actions</th></tr></thead>
+    <tbody>${res.admins.map(a => `<tr><td>${a.name}</td><td>${a.email}</td><td>${a.mobile||'-'}</td><td>${UI.getStatusBadge(a.status)}</td><td>${UI.formatDate(a.last_login)}</td><td><button class="btn btn-sm btn-danger" onclick="deleteAdmin(${a.id})">Delete</button></td></tr>`).join('')}</tbody></table></div></div>
+  `;
+}
+
+function showAddAdmin() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay show';
+  modal.innerHTML = `
+    <div class="modal-content" style="max-width:550px;"><div class="modal-header"><h5>👤 Create New Admin</h5><button class="btn btn-sm btn-secondary" onclick="this.closest('.modal-overlay').remove()">✕</button></div>
+    <div class="modal-body"><form id="addAdminForm">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+        <div class="form-group"><label>Full Name *</label><input class="form-control" id="aName" required></div>
+        <div class="form-group"><label>Email *</label><input type="email" class="form-control" id="aEmail" required></div>
+        <div class="form-group"><label>Password *</label><input type="password" class="form-control" id="aPassword" required></div>
+        <div class="form-group"><label>Mobile Number *</label><input type="tel" class="form-control" id="aMobile" required></div>
+        <div class="form-group"><label>Alternate Mobile</label><input type="tel" class="form-control" id="aAltMobile"></div>
+        <div class="form-group"><label>Aadhar Card Number *</label><input class="form-control" id="aAadhar" placeholder="XXXX-XXXX-XXXX" required></div>
+        <div class="form-group"><label>Upload Aadhar Photo</label><input type="file" class="form-control" id="aAadharPhoto" accept="image/*"></div>
+        <div class="form-group"><label>Bank Account Number</label><input class="form-control" id="aBankAc" placeholder="Bank account number"></div>
+        <div class="form-group"><label>Commission Type</label><select class="form-control" id="aCommType"><option value="percentage">Percentage (%)</option><option value="fixed">Fixed Amount</option></select></div>
+        <div class="form-group"><label>Commission Amount</label><input type="number" class="form-control" id="aCommAmt" value="10" step="0.01"></div>
+      </div>
+      <div id="adminError"></div>
+      <button type="submit" class="btn btn-success btn-block" style="margin-top:1rem;">✅ Create Admin Account</button>
+    </form></div></div>`;
+  document.body.appendChild(modal);
+  document.getElementById('addAdminForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = {
+      name: document.getElementById('aName').value,
+      email: document.getElementById('aEmail').value,
+      password: document.getElementById('aPassword').value,
+      mobile: document.getElementById('aMobile').value,
+      alternate_mobile: document.getElementById('aAltMobile').value,
+      aadhar_number: document.getElementById('aAadhar').value,
+      bank_account: document.getElementById('aBankAc').value,
+      commission_type: document.getElementById('aCommType').value,
+      commission_amount: parseFloat(document.getElementById('aCommAmt').value)
+    };
+    const res = await API.post('/master/admins', formData);
+    if (res.success) { modal.remove(); loadPage('admins'); UI.showToast('Admin created! ID: ' + (res.admin?.email||'Success'), 'success'); }
+    else document.getElementById('adminError').innerHTML = `<div class="alert alert-danger">${res.message}</div>`;
+  });
+}
+
+async function deleteAdmin(id) {
+  if (!confirm('Delete this admin?')) return;
+  await API.delete(`/master/admins/${id}`);
+  loadPage('admins');
+}
+
+// ============ TECHNICIANS ============
+async function loadTechnicians(container) {
+  const res = await API.get('/master/technicians');
+  if (!res.success) { container.innerHTML = '<p>Error</p>'; return; }
+  container.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+    <h4>🛠️ Technician Management</h4><button class="btn btn-success" onclick="showAddTech()">+ Add Technician</button></div>
+    <div class="card"><div class="card-body" style="overflow-x:auto"><table class="table"><thead><tr><th>Name</th><th>Email</th><th>Specialization</th><th>Experience</th><th>Commission %</th><th>Repairs</th><th>Rating</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>${res.technicians.map(t => `<tr><td>${t.name}</td><td>${t.email}</td><td>${t.specialization||'-'}</td><td>${t.experience||'-'}</td><td>${t.commission_percent}%</td><td>${t.total_repairs}</td><td>${t.rating}</td><td>${UI.getStatusBadge(t.status)}</td><td><button class="btn btn-sm btn-danger" onclick="deleteTech(${t.id})">Delete</button></td></tr>`).join('')}</tbody></table></div></div>
+  `;
+}
+
+function showAddTech() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay show';
+  modal.innerHTML = `
+    <div class="modal-content" style="max-width:450px;"><div class="modal-header"><h5>Add Technician</h5><button class="btn btn-sm btn-secondary" onclick="this.closest('.modal-overlay').remove()">✕</button></div>
+    <div class="modal-body"><form id="addTechForm">
+      <div class="form-group"><label>Name *</label><input class="form-control" id="tName" required></div>
+      <div class="form-group"><label>Email *</label><input type="email" class="form-control" id="tEmail" required></div>
+      <div class="form-group"><label>Password *</label><input type="password" class="form-control" id="tPassword" required></div>
+      <div class="form-group"><label>Mobile</label><input class="form-control" id="tMobile"></div>
+      <div class="form-group"><label>Specialization</label><input class="form-control" id="tSpec"></div>
+      <div class="form-group"><label>Experience</label><input class="form-control" id="tExp"></div>
+      <div class="form-group"><label>Commission %</label><input type="number" class="form-control" id="tComm" value="10"></div>
+      <div id="techError"></div>
+      <button type="submit" class="btn btn-success btn-block">Create Technician</button>
+    </form></div></div>`;
+  document.body.appendChild(modal);
+  document.getElementById('addTechForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const res = await API.post('/master/technicians', { name: document.getElementById('tName').value, email: document.getElementById('tEmail').value, password: document.getElementById('tPassword').value, mobile: document.getElementById('tMobile').value, specialization: document.getElementById('tSpec').value, experience: document.getElementById('tExp').value, commission_percent: parseFloat(document.getElementById('tComm').value) });
+    if (res.success) { modal.remove(); loadPage('technicians'); UI.showToast('Technician created!', 'success'); }
+    else document.getElementById('techError').innerHTML = `<div class="alert alert-danger">${res.message}</div>`;
+  });
+}
+
+async function deleteTech(id) {
+  if (!confirm('Delete this technician?')) return;
+  await API.delete(`/master/technicians/${id}`);
+  loadPage('technicians');
+}
+
+// ============ GALLERY ============
+async function loadGallery(container) {
+  const res = await API.get('/gallery/manage');
+  container.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+    <h4>🖼️ Gallery Management</h4><button class="btn btn-success" onclick="showAddGallery()">+ Upload Image</button></div>
+    <div class="card"><div class="card-body">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1rem">
+    ${res.images?.map(img => `
+      <div style="border:1px solid #e9ecef;border-radius:var(--radius);overflow:hidden;text-align:center;">
+        <img src="${img.image_path}" style="width:100%;height:150px;object-fit:cover;">
+        <div style="padding:0.5rem;"><small>${img.title||'Untitled'}</small><br>
+        <span class="badge ${img.status==='active'?'badge-active':'badge-inactive'}">${img.status}</span><br>
+        <button class="btn btn-sm btn-danger mt-1" onclick="deleteGallery(${img.id})">Delete</button></div>
+      </div>`).join('')}</div></div></div>
+  `;
+}
+
+function showAddGallery() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay show';
+  modal.innerHTML = `
+    <div class="modal-content" style="max-width:450px;"><div class="modal-header"><h5>Upload Gallery Image</h5><button class="btn btn-sm btn-secondary" onclick="this.closest('.modal-overlay').remove()">✕</button></div>
+    <div class="modal-body"><form id="galleryForm" enctype="multipart/form-data">
+      <div class="form-group"><label>Title</label><input class="form-control" name="title"></div>
+      <div class="form-group"><label>Image *</label><input type="file" class="form-control" name="image" accept="image/*" required></div>
+      <div class="form-group"><label>Page Location</label><select class="form-control" name="page_location"><option value="home">Home Page</option><option value="customer_login">Customer Login</option><option value="student_login">Student Login</option><option value="admin_login">Admin Login</option><option value="technician_login">Technician Login</option><option value="master_login">Master Login</option><option value="all">All Pages</option></select></div>
+      <button type="submit" class="btn btn-success btn-block">Upload</button>
+    </form></div></div>`;
+  document.body.appendChild(modal);
+  document.getElementById('galleryForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const res = await API.request('/gallery/manage', { method: 'POST', body: formData });
+    if (res.success) { modal.remove(); loadPage('gallery'); UI.showToast('Image uploaded!', 'success'); }
+    else UI.showToast(res.message, 'error');
+  });
+}
+
+async function deleteGallery(id) {
+  if (!confirm('Delete this image?')) return;
+  await API.delete(`/gallery/manage/${id}`);
+  loadPage('gallery');
+}
+
+// ============ COURSES ============
+async function loadCourses(container) {
+  const res = await API.get('/course/manage');
+  container.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+    <h4>📚 Course Management</h4><button class="btn btn-success" onclick="showAddCourse()">+ Add Course</button></div>
+    <div class="course-grid">${res.courses?.map(c => `
+      <div class="course-card">
+        <div class="course-card-header" style="background:var(--gradient-1);"><h5>${c.course_name}</h5><small>${c.course_code||''}</small></div>
+        <div class="course-card-body">
+          <p>${c.description||'No description'}</p>
+          <p><strong>Duration:</strong> ${c.duration||'N/A'}</p>
+          <p><strong>Enrolled:</strong> ${c.enrolled_students} students</p>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+            <button class="btn btn-sm btn-primary" onclick="showAddVideo(${c.id})">+ Video</button>
+            <button class="btn btn-sm btn-info" onclick="showAddMaterial(${c.id})">+ Material</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteCourse(${c.id})">Delete</button>
+          </div>
+        </div>
+      </div>`).join('')}</div>
+  `;
+}
+
+function showAddCourse() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay show';
+  modal.innerHTML = `
+    <div class="modal-content" style="max-width:450px;"><div class="modal-header"><h5>Add Course</h5><button class="btn btn-sm btn-secondary" onclick="this.closest('.modal-overlay').remove()">✕</button></div>
+    <div class="modal-body"><form id="courseForm">
+      <div class="form-group"><label>Course Name *</label><input class="form-control" id="cName" required></div>
+      <div class="form-group"><label>Code</label><input class="form-control" id="cCode"></div>
+      <div class="form-group"><label>Description</label><textarea class="form-control" id="cDesc"></textarea></div>
+      <div class="form-group"><label>Duration</label><input class="form-control" id="cDuration"></div>
+      <div class="form-group"><label>Price</label><input type="number" class="form-control" id="cPrice"></div>
+      <button type="submit" class="btn btn-success btn-block">Create Course</button>
+    </form></div></div>`;
+  document.body.appendChild(modal);
+  document.getElementById('courseForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const res = await API.post('/course/manage', { course_name: document.getElementById('cName').value, course_code: document.getElementById('cCode').value, description: document.getElementById('cDesc').value, duration: document.getElementById('cDuration').value, price: document.getElementById('cPrice').value });
+    if (res.success) { modal.remove(); loadPage('courses'); UI.showToast('Course created!', 'success'); }
+    else UI.showToast(res.message, 'error');
+  });
+}
+
+function showAddVideo(courseId) {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay show';
+  modal.innerHTML = `
+    <div class="modal-content" style="max-width:450px;"><div class="modal-header"><h5>Add YouTube Video</h5><button class="btn btn-sm btn-secondary" onclick="this.closest('.modal-overlay').remove()">✕</button></div>
+    <div class="modal-body"><form id="videoForm">
+      <div class="form-group"><label>Title *</label><input class="form-control" id="vTitle" required></div>
+      <div class="form-group"><label>YouTube URL *</label><input class="form-control" id="vUrl" placeholder="https://youtube.com/watch?v=..." required></div>
+      <div class="form-group"><label>Duration</label><input class="form-control" id="vDuration" placeholder="e.g., 10:30"></div>
+      <button type="submit" class="btn btn-success btn-block">Add Video</button>
+    </form></div></div>`;
+  document.body.appendChild(modal);
+  document.getElementById('videoForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const res = await API.post(`/course/manage/${courseId}/video`, { title: document.getElementById('vTitle').value, video_url: document.getElementById('vUrl').value, duration: document.getElementById('vDuration').value });
+    if (res.success) { modal.remove(); UI.showToast('Video added!', 'success'); }
+    else UI.showToast(res.message, 'error');
+  });
+}
+
+function showAddMaterial(courseId) {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay show';
+  modal.innerHTML = `
+    <div class="modal-content" style="max-width:450px;"><div class="modal-header"><h5>Upload Material</h5><button class="btn btn-sm btn-secondary" onclick="this.closest('.modal-overlay').remove()">✕</button></div>
+    <div class="modal-body"><form id="matForm" enctype="multipart/form-data">
+      <div class="form-group"><label>Title</label><input class="form-control" name="title"></div>
+      <div class="form-group"><label>File *</label><input type="file" class="form-control" name="file" required></div>
+      <button type="submit" class="btn btn-success btn-block">Upload</button>
+    </form></div></div>`;
+  document.body.appendChild(modal);
+  document.getElementById('matForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const res = await API.request(`/course/manage/${courseId}/material`, { method: 'POST', body: fd });
+    if (res.success) { modal.remove(); UI.showToast('Material uploaded!', 'success'); }
+    else UI.showToast(res.message, 'error');
+  });
+}
+
+async function deleteCourse(id) {
+  if (!confirm('Delete this course?')) return;
+  await API.delete(`/course/manage/${id}`);
+  loadPage('courses');
+}
+
+// ============ CERTIFICATES ============
+async function loadCertificates(container) {
+  const [certs, students] = await Promise.all([API.get('/certificate/manage'), API.get('/master/students')]);
+  container.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+    <h4>📜 Certificate Management</h4><button class="btn btn-success" onclick="showAddCert()">+ Upload Certificate</button></div>
+    <div class="card"><div class="card-body"><table class="table"><thead><tr><th>Student</th><th>Student ID</th><th>Title</th><th>Type</th><th>Issue Date</th><th>Actions</th></tr></thead>
+    <tbody>${certs.certificates?.map(c => `<tr><td>${c.student_name}</td><td>${c.student_id}</td><td>${c.title}</td><td>${c.certificate_type.toUpperCase()}</td><td>${c.issue_date||'-'}</td><td><a href="${c.file_path}" target="_blank" class="btn btn-sm btn-primary">View</a> <button class="btn btn-sm btn-danger" onclick="deleteCert(${c.id})">Delete</button></td></tr>`).join('')}</tbody></table></div></div>
+  `;
+}
+
+function showAddCert() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay show';
+  modal.innerHTML = `
+    <div class="modal-content" style="max-width:450px;"><div class="modal-header"><h5>Upload Certificate</h5><button class="btn btn-sm btn-secondary" onclick="this.closest('.modal-overlay').remove()">✕</button></div>
+    <div class="modal-body"><form id="certForm" enctype="multipart/form-data">
+      <div class="form-group"><label>Student *</label><select class="form-control" name="student_id" id="certStudent" required><option value="">Select Student</option></select></div>
+      <div class="form-group"><label>Title</label><input class="form-control" name="title" value="Certificate of Completion"></div>
+      <div class="form-group"><label>Certificate File * (PDF/JPG)</label><input type="file" class="form-control" name="certificate" accept=".pdf,.jpg,.jpeg,.png" required></div>
+      <button type="submit" class="btn btn-success btn-block">Upload</button>
+    </form></div></div>`;
+  document.body.appendChild(modal);
+
+  API.get('/master/students').then(res => {
+    const sel = document.getElementById('certStudent');
+    res.students?.forEach(s => { const o = document.createElement('option'); o.value = s.id; o.textContent = `${s.name} (${s.student_id})`; sel.appendChild(o); });
+  });
+
+  document.getElementById('certForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const res = await API.request('/certificate/manage', { method: 'POST', body: fd });
+    if (res.success) { modal.remove(); loadPage('certificates'); UI.showToast('Certificate uploaded!', 'success'); }
+    else UI.showToast(res.message, 'error');
+  });
+}
+
+async function deleteCert(id) {
+  if (!confirm('Delete this certificate?')) return;
+  await API.delete(`/certificate/manage/${id}`);
+  loadPage('certificates');
+}
+
+// ============ REPAIRS ============
+async function loadRepairs(container) {
+  const res = await API.get('/repair/all');
+  container.innerHTML = `
+    <h4>🔨 Repair Management</h4>
+    <div class="card"><div class="card-body" style="overflow-x:auto"><table class="table"><thead><tr><th>Tracking</th><th>Customer</th><th>Device</th><th>Brand</th><th>Tech</th><th>Status</th><th>Date</th></tr></thead>
+    <tbody>${res.repairs?.map(r => `<tr><td><strong>${r.tracking_number}</strong></td><td>${r.customer_name}</td><td>${r.device_type}</td><td>${r.brand}</td><td>${r.tech_name||'Unassigned'}</td><td>${UI.getStatusBadge(r.status)}</td><td>${UI.formatDate(r.created_at)}</td></tr>`).join('')}</tbody></table></div></div>
+  `;
+}
+
+// ============ INVOICES ============
+async function loadInvoices(container) {
+  const [inv, pay] = await Promise.all([API.get('/payment/invoices'), API.get('/payment/payments')]);
+  container.innerHTML = `
+    <h4>💰 Invoices & Payments</h4>
+    <div class="card mb-3"><div class="card-header"><h5>Invoices</h5></div>
+    <div class="card-body" style="overflow-x:auto"><table class="table"><thead><tr><th>Invoice #</th><th>Customer</th><th>Total</th><th>Paid</th><th>Balance</th><th>Status</th></tr></thead>
+    <tbody>${inv.invoices?.map(i => `<tr><td>${i.invoice_number}</td><td>${i.customer_name}</td><td>${UI.formatCurrency(i.total_amount)}</td><td>${UI.formatCurrency(i.paid_amount)}</td><td>${UI.formatCurrency(i.balance_amount)}</td><td>${UI.getStatusBadge(i.payment_status)}</td></tr>`).join('')}</tbody></table></div></div>
+    <div class="card"><div class="card-header"><h5>Payments</h5></div>
+    <div class="card-body" style="overflow-x:auto"><table class="table"><thead><tr><th>Invoice</th><th>Customer</th><th>Amount</th><th>Method</th><th>Date</th></tr></thead>
+    <tbody>${pay.payments?.map(p => `<tr><td>${p.invoice_number}</td><td>${p.customer}</td><td>${UI.formatCurrency(p.amount)}</td><td>${p.payment_method}</td><td>${UI.formatDate(p.payment_date)}</td></tr>`).join('')}</tbody></table></div></div>
+  `;
+}
+
+// ============ NOTIFICATIONS ============
+async function loadNotifications(container) {
+  const res = await API.get('/notification/all');
+  container.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+    <h4>🔔 Notifications</h4><button class="btn btn-success" onclick="showSendNotification()">+ Send Notification</button></div>
+    <div class="card"><div class="card-body"><table class="table"><thead><tr><th>Title</th><th>Message</th><th>Role</th><th>Type</th><th>Status</th><th>Date</th></tr></thead>
+    <tbody>${res.notifications?.map(n => `<tr><td>${n.title}</td><td>${n.message.substring(0,80)}</td><td>${n.user_role}</td><td>${n.type}</td><td>${n.sent_status}</td><td>${UI.formatDate(n.created_at)}</td></tr>`).join('')}</tbody></table></div></div>
+  `;
+}
+
+function showSendNotification() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay show';
+  modal.innerHTML = `
+    <div class="modal-content" style="max-width:450px;"><div class="modal-header"><h5>Send Notification</h5><button class="btn btn-sm btn-secondary" onclick="this.closest('.modal-overlay').remove()">✕</button></div>
+    <div class="modal-body"><form id="notifForm">
+      <div class="form-group"><label>Target Role</label><select class="form-control" id="nRole"><option value="all">All Users</option><option value="customer">Customers</option><option value="student">Students</option><option value="technician">Technicians</option></select></div>
+      <div class="form-group"><label>Title *</label><input class="form-control" id="nTitle" required></div>
+      <div class="form-group"><label>Message *</label><textarea class="form-control" id="nMessage" required></textarea></div>
+      <button type="submit" class="btn btn-success btn-block">Send</button>
+    </form></div></div>`;
+  document.body.appendChild(modal);
+  document.getElementById('notifForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const res = await API.post('/notification/send', { user_role: document.getElementById('nRole').value, title: document.getElementById('nTitle').value, message: document.getElementById('nMessage').value, type: 'system', sent_via: 'system' });
+    if (res.success) { modal.remove(); loadPage('notifications'); UI.showToast('Notification sent!', 'success'); }
+    else UI.showToast(res.message, 'error');
+  });
+}
+
+// ============ REPORTS ============
+async function loadReports(container) {
+  container.innerHTML = `
+    <h4>📈 Reports & Exports</h4>
+    <div class="row" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:1rem;">
+      <div class="card"><div class="card-body text-center">
+        <h5>📋 Repair Report</h5><p>Download repair data as Excel</p>
+        <button class="btn btn-primary" onclick="exportReport('repairs')">Export Excel</button>
+      </div></div>
+      <div class="card"><div class="card-body text-center">
+        <h5>💰 Revenue Report</h5><p>Download revenue data as Excel</p>
+        <button class="btn btn-success" onclick="exportReport('revenue')">Export Excel</button>
+      </div></div>
+      <div class="card"><div class="card-body text-center">
+        <h5>👥 Customer Report</h5><p>Download customer data as Excel</p>
+        <button class="btn btn-info" onclick="exportReport('customers')">Export Excel</button>
+      </div></div>
+      <div class="card"><div class="card-body text-center">
+        <h5>🎓 Student Report</h5><p>Download student data as Excel</p>
+        <button class="btn btn-warning" onclick="exportReport('students')">Export Excel</button>
+      </div></div>
+    </div>
+  `;
+}
+
+function exportReport(type) {
+  window.open(`/api/report/export/${type}`, '_blank');
+}
+
+// ============ SETTINGS ============
+async function loadSettings(container) {
+  const res = await API.get('/master/settings');
+  container.innerHTML = `
+    <h4>⚙️ Application Settings</h4>
+    <div class="card"><div class="card-body">
+    <form id="settingsForm">
+      ${res.settings?.map(s => `
+        <div class="form-group">
+          <label>${s.setting_key} <small style="color:var(--secondary);">(${s.description})</small></label>
+          <input class="form-control" name="${s.setting_key}" value="${s.setting_value||''}">
+        </div>`).join('')}
+      <button type="submit" class="btn btn-primary">Save Settings</button>
+    </form>
+    <hr>
+    <h5>Upload Logo</h5>
+    <form id="logoForm" enctype="multipart/form-data">
+      <div class="form-group"><input type="file" class="form-control" name="logo" accept="image/*" required></div>
+      <button type="submit" class="btn btn-info">Upload Logo</button>
+    </form></div></div>
+  `;
+
+  document.getElementById('logoForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const res = await API.request('/master/upload-logo', { method: 'POST', body: fd });
+    if (res.success) UI.showToast('Logo updated!', 'success');
+    else UI.showToast(res.message, 'error');
+  });
+
+  document.getElementById('settingsForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const settings = [];
+    for (const [key, value] of fd.entries()) settings.push({ setting_key: key, setting_value: value });
+    const res = await API.put('/master/settings', { settings });
+    if (res.success) UI.showToast('Settings saved!', 'success');
+    else UI.showToast(res.message, 'error');
+  });
+}
+
+// Initial load
+loadPage('overview');
+</script>
+</body>
+</html>

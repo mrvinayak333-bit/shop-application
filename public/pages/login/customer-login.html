@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Customer Login - SHREE RAAM MOBAILE</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="/css/style.css" rel="stylesheet">
+</head>
+<body>
+  <nav class="navbar">
+    <a href="/" class="navbar-brand"><span style="font-size:1.6rem;">📱</span> SHREE RAAM MOBAILE</a>
+    <a href="/" class="btn btn-sm btn-outline-primary">← Home</a>
+  </nav>
+
+  <div class="login-page">
+    <div class="login-container">
+      <div class="login-card">
+        <div class="login-header">
+          <span class="role-badge bg-customer">Customer</span>
+          <h3>Customer Login</h3>
+          <p>Login with your name, mobile number & password</p>
+        </div>
+        <div class="login-slider" id="loginSlider"></div>
+        <form id="loginForm">
+          <div class="form-group">
+            <label>Your Name *</label>
+            <input type="text" class="form-control" id="loginName" placeholder="Enter your full name" required>
+          </div>
+          <div class="form-group">
+            <label>Mobile Number *</label>
+            <input type="tel" class="form-control" id="mobile" placeholder="Enter mobile number" required>
+          </div>
+          <div class="form-group">
+            <label>Password *</label>
+            <input type="password" class="form-control" id="password" placeholder="Enter password" required>
+          </div>
+          <div id="loginError"></div>
+          <button type="submit" class="btn btn-success btn-block">🔑 Login</button>
+        </form>
+        <div class="text-center mt-3">
+          <p>Don't have an account? <a href="#" onclick="showRegister()">Register Now</a></p>
+        </div>
+      </div>
+
+      <!-- Register -->
+      <div class="login-card d-none" id="registerCard">
+        <div class="login-header">
+          <span class="role-badge bg-customer">New Customer</span>
+          <h3>Create Account</h3>
+        </div>
+        <form id="registerForm">
+          <div class="form-group"><label>Full Name *</label><input class="form-control" id="regName" required></div>
+          <div class="form-group"><label>Mobile Number *</label><input type="tel" class="form-control" id="regMobile" required></div>
+          <div class="form-group"><label>Password *</label><input type="password" class="form-control" id="regPassword" required></div>
+          <div class="form-group"><label>Address</label><input class="form-control" id="regAddress"></div>
+          <div class="form-group"><label>City</label><input class="form-control" id="regCity"></div>
+          <div id="regError"></div>
+          <button type="submit" class="btn btn-success btn-block">📝 Register</button>
+        </form>
+        <div class="text-center mt-3"><a href="#" onclick="showLogin()">Already registered? Login</a></div>
+      </div>
+      <div class="back-link"><a href="/">← Back to Home</a></div>
+    </div>
+  </div>
+
+  <a href="https://wa.me/919552210333" target="_blank" class="whatsapp-float">💬</a>
+
+  <script src="/js/main.js"></script>
+  <script>
+    Gallery.initSlider(document.getElementById('loginSlider'), 'customer_login');
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const res = await Auth.login(null, document.getElementById('password').value, 'customer', null, {
+        name: document.getElementById('loginName').value,
+        mobile: document.getElementById('mobile').value
+      });
+      if (res.success) window.location.href = '/dashboard/customer';
+      else document.getElementById('loginError').innerHTML = `<div class="alert alert-danger">${res.message}</div>`;
+    });
+
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const res = await API.post('/customer/register', {
+        name: document.getElementById('regName').value,
+        mobile: document.getElementById('regMobile').value,
+        password: document.getElementById('regPassword').value,
+        address: document.getElementById('regAddress').value,
+        city: document.getElementById('regCity').value
+      });
+      if (res.success) { API.setToken(res.token); API.setUser(res.user); window.location.href = '/dashboard/customer'; }
+      else document.getElementById('regError').innerHTML = `<div class="alert alert-danger">${res.message}</div>`;
+    });
+
+    function showRegister() { document.getElementById('loginForm').closest('.login-card').classList.add('d-none'); document.getElementById('registerCard').classList.remove('d-none'); }
+    function showLogin() { document.getElementById('registerCard').classList.add('d-none'); document.getElementById('loginForm').closest('.login-card').classList.remove('d-none'); }
+  </script>
+</body>
+</html>

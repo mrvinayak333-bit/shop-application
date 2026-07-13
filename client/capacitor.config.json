@@ -1,0 +1,14 @@
+{
+  "appId": "com.shop.application",
+  "appName": "SRM",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "allowNavigation": [
+      "*"
+    ]
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

@@ -412,6 +412,43 @@ async function runMigrations() {
       console.error('Error syncing purchases to enrollments:', e.message);
     }
 
+    // Seed/Update default Master & Admin accounts
+    try {
+      const bcrypt = require('bcryptjs');
+      
+      // Master: mr.vinayak333@gmail.com / VINAYAK@333
+      const masterEmail = 'mr.vinayak333@gmail.com';
+      const masterPass = await bcrypt.hash('VINAYAK@333', 10);
+      const [existingMaster] = await pool.query('SELECT id FROM master_users WHERE email = ?', [masterEmail]);
+      if (existingMaster.length === 0) {
+        await pool.query(
+          'INSERT INTO master_users (name, email, password, mobile, status) VALUES (?, ?, ?, ?, ?)',
+          ['Master Admin', masterEmail, masterPass, '919552210333', 'active']
+        );
+        console.log('✓ Seeded Master Admin account');
+      } else {
+        await pool.query('UPDATE master_users SET password = ?, status = ? WHERE email = ?', [masterPass, 'active', masterEmail]);
+        console.log('✓ Verified/Updated Master Admin account');
+      }
+
+      // Admin: admin@repairsystem.com / master123
+      const adminEmail = 'admin@repairsystem.com';
+      const adminPass = await bcrypt.hash('master123', 10);
+      const [existingAdmin] = await pool.query('SELECT id FROM admins WHERE email = ?', [adminEmail]);
+      if (existingAdmin.length === 0) {
+        await pool.query(
+          'INSERT INTO admins (name, email, password, mobile, status) VALUES (?, ?, ?, ?, ?)',
+          ['System Admin', adminEmail, adminPass, '919552210000', 'active']
+        );
+        console.log('✓ Seeded System Admin account');
+      } else {
+        await pool.query('UPDATE admins SET password = ?, status = ? WHERE email = ?', [adminPass, 'active', adminEmail]);
+        console.log('✓ Verified/Updated System Admin account');
+      }
+    } catch (e) {
+      console.error('Error seeding master/admin accounts:', e.message);
+    }
+
     console.log('✅ Database migrations completed');
   } catch (err) {
     console.error('Migration error:', err.message);

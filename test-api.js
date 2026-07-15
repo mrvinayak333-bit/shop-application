@@ -67,6 +67,14 @@ async function runTests() {
   // Test 3: Authentication System
   console.log('\n📋 Test 3: Authentication System');
   
+  // Master Login
+  result = await testAPI('Master Login', 'POST', '/auth/login', {
+    email: 'mr.vinayak333@gmail.com',
+    password: 'VINAYAK@333',
+    role: 'master'
+  });
+  console.log(`${result.success ? '✓' : '✗'} Master Login: ${result.status}`);
+
   // Admin Login
   result = await testAPI('Admin Login', 'POST', '/auth/login', {
     email: 'admin@repairsystem.com',

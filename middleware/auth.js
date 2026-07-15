@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback_srm_secure_jwt_secret_token_12345';
+
 // Verify JWT Token
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
@@ -11,7 +13,7 @@ const authenticateToken = (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
     next();
   } catch (err) {
@@ -41,7 +43,7 @@ const generateToken = (user) => {
       name: user.name,
       email: user.email 
     },
-    process.env.JWT_SECRET,
+    JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRE || '7d' }
   );
 };
@@ -50,7 +52,7 @@ const generateToken = (user) => {
 const generateRefreshToken = (user) => {
   return jwt.sign(
     { id: user.id, role: user.role },
-    process.env.JWT_SECRET,
+    JWT_SECRET,
     { expiresIn: '30d' }
   );
 };

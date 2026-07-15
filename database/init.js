@@ -17,15 +17,15 @@ async function initDatabase() {
     console.log('Connected to MySQL server');
 
     // Read and execute schema
-    const schemaPath = path.join(__dirname, 'schema.sql');
+    const schemaPath = path.join(__dirname, 'PROD_SCHEMA.sql');
     const schema = fs.readFileSync(schemaPath, 'utf8');
 
-    console.log('Creating database and tables...');
+    console.log('Creating database and tables from PROD_SCHEMA.sql...');
     await connection.query(schema);
 
     console.log('✅ Database initialized successfully!');
     console.log('Database: mobile_repair_system');
-    console.log('Tables created: 23');
+    console.log('Tables created: 31');
     console.log('\nDefault Login Credentials:');
     console.log('  Master:  mr.vinayak333@gmail.com / VINAYAK@333');
     console.log('  Admin:   admin@repairsystem.com / master123');

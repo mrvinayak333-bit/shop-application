@@ -63,6 +63,10 @@ export default function Navbar() {
     { to: '/#tracking', label: 'Live Tracking', icon: Search },
   ];
 
+  const staffLinks = [
+    { to: '/login/staff', label: 'Staff Login', icon: Users },
+  ];
+
   // Map user role to panel path
   const getPanelPath = () => {
     if (!user) return '/login/customer';

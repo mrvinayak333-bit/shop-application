@@ -14,9 +14,38 @@ const rateLimit = require('express-rate-limit');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Ensure upload directories exist
+const uploadDirs = [
+  'uploads',
+  'uploads/profiles',
+  'uploads/repair_photos',
+  'uploads/pickup',
+  'uploads/gallery',
+  'uploads/courses',
+  'uploads/payments',
+  'uploads/payments/screenshots',
+  'uploads/support',
+  'uploads/logos',
+  'uploads/certificates',
+  'uploads/sliders'
+];
+uploadDirs.forEach(dir => {
+  const p = path.join(__dirname, dir);
+  if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
+});
+
 // Security Middleware
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors({ origin: '*', credentials: true }));
+// Dynamic CORS configuration to allow credential sharing without wildcard errors
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    callback(null, origin);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
 
 // Rate Limiting
 const limiter = rateLimit({
@@ -356,6 +385,13 @@ async function runMigrations() {
     )`);
 
     // LMS migrations and sync: add payment_status and transaction_id to course_enrollments
+    try {
+      await pool.query("ALTER TABLE students ADD COLUMN IF NOT EXISTS android_device_id VARCHAR(255) DEFAULT NULL");
+    } catch (e) {
+      // In case IF NOT EXISTS is not supported, catch duplicate column error
+      if (!e.message.includes('Duplicate column')) console.log('Students column migration skip:', e.message);
+    }
+
     try {
       await pool.query("ALTER TABLE course_enrollments ADD COLUMN IF NOT EXISTS payment_status VARCHAR(50) DEFAULT 'completed'");
       await pool.query("ALTER TABLE course_enrollments ADD COLUMN IF NOT EXISTS transaction_id VARCHAR(200) DEFAULT NULL");

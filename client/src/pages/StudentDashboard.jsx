@@ -7,7 +7,7 @@ import {
   MessageSquare, Send, Bell, Volume2, VolumeX, ShieldCheck, Plus
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-import api from '../lib/api';
+import api, { getApiBase } from '../lib/api';
 import Navbar from '../components/Navbar';
 import Loading from '../components/Loading';
 import ToastContainer, { showToast } from '../components/Toast';
@@ -758,7 +758,7 @@ export default function StudentDashboard() {
                       <td className="px-4 py-3 text-right">
                         {cert.status === 'approved' ? (
                           <a 
-                            href={`http://localhost:5000/api/student/certificates/${cert.id}/html?print=true`} 
+                            href={`${getApiBase()}/student/certificates/${cert.id}/html?print=true`}
                             target="_blank" 
                             rel="noreferrer" 
                             className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-bold text-xs"

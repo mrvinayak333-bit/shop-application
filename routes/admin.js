@@ -221,7 +221,7 @@ router.get('/export/activity', async (req, res) => {
        FROM activity_logs al
        LEFT JOIN admins a ON al.user_id = a.id AND al.user_role = 'admin'
        LEFT JOIN technicians t ON al.user_id = t.id AND al.user_role = 'technician'
-       LEFT JOIN masters m ON al.user_id = m.id AND al.user_role = 'master'
+       LEFT JOIN master_users m ON al.user_id = m.id AND al.user_role = 'master'
        ORDER BY al.created_at DESC LIMIT 5000`
     );
     

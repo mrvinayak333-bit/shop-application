@@ -422,7 +422,7 @@ router.get('/reports/admin-performance', async (req, res) => {
               COALESCE(SUM(i.paid_amount), 0) as revenue_generated,
               a.created_at
        FROM admins a
-       LEFT JOIN repair_requests rr ON a.id = rr.assigned_admin
+       LEFT JOIN repair_requests rr ON a.id = rr.admin_verified_by
        LEFT JOIN invoices i ON rr.id = i.repair_id
        GROUP BY a.id
        ORDER BY revenue_generated DESC`

@@ -109,8 +109,12 @@ export function NotificationProvider({ children }) {
     if (msg.includes('testing') || msg.includes('quality')) return '🧪';
     if (msg.includes('ready') || msg.includes('delivery')) return '📋';
     if (msg.includes('delivered')) return '🎉';
-    if (type === 'assignment') return '📋';
+    if (type === 'assignment' || type === 'course_assigned') return '📋';
     if (type === 'quotation') return '💰';
+    if (type === 'certificate' || msg.includes('certificate')) return '📜';
+    if (type === 'support' || msg.includes('ticket') || msg.includes('reply')) return '💬';
+    if (type === 'announcement' || msg.includes('announcement')) return '📢';
+    if (type === 'new_content' || msg.includes('uploaded')) return '📚';
     return '🔔';
   };
 

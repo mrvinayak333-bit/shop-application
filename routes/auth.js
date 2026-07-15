@@ -80,6 +80,25 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
+    // Course Security: Student device lock
+    if (role === 'student') {
+      const { deviceId } = req.body;
+      if (!deviceId) {
+        return res.status(400).json({ success: false, message: 'Device ID is required for student login.' });
+      }
+      if (userData.android_device_id && userData.android_device_id !== deviceId) {
+        return res.status(403).json({
+          success: false,
+          message: 'Login blocked. This account is registered to another device. Please contact master admin to reset your device.'
+        });
+      }
+      if (!userData.android_device_id) {
+        // Lock to the first device ID on successful login
+        await pool.query('UPDATE students SET android_device_id = ? WHERE id = ?', [deviceId, userData.id]);
+        userData.android_device_id = deviceId;
+      }
+    }
+
     // Update last login
     await pool.query(`UPDATE ${table} SET last_login = NOW() WHERE ${idField} = ?`, [userData[idField]]);
 

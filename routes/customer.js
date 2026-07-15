@@ -22,6 +22,13 @@ router.post('/register', async (req, res) => {
       [name, email || null, hashedPassword, mobile, address || null, city || null, state || null, pincode || null]
     );
     const token = generateToken({ id: result.insertId, role: 'customer', name, email: email || '' });
+    
+    // Trigger welcome email notification asynchronously
+    if (email) {
+      const { sendMailFromTemplate } = require('../services/emailService');
+      sendMailFromTemplate(email, 'welcome_email_template', { name }).catch(e => console.error(e));
+    }
+
     res.status(201).json({ success: true, message: 'Registration successful', token, user: { id: result.insertId, name, email, mobile, role: 'customer' } });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error' });

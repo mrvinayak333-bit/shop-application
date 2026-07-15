@@ -21,7 +21,7 @@ const pickupStorage = multer.diskStorage({
 const uploadPickup = multer({ storage: pickupStorage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 router.use(authenticateToken);
-router.use(authorize('admin'));
+router.use(authorize('admin', 'master'));
 
 router.get('/dashboard', async (req, res) => {
   try {

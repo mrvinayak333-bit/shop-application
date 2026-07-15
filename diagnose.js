@@ -67,9 +67,10 @@ async function runTests() {
   // Test 3: Student Login
   console.log('\n👨‍🎓 Student Login Test:');
   const studentLogin = await testEndpoint('http://localhost:5000/api/auth/login', 'POST', {
-    mobileOrStudentId: 'SRMS-2026-4364',
+    studentId: 'SRMS-2026-4364',
     password: 'student123',
-    role: 'student'
+    role: 'student',
+    deviceId: 'diagnose-test-device'
   });
   if (studentLogin.error) {
     console.log('❌ Student Login Failed:', studentLogin.error);

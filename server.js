@@ -58,7 +58,148 @@ const reportRoutes = require('./routes/report');
 const transactionRoutes = require('./routes/transactions');
 const laptopRepairRoutes = require('./routes/laptop-repair');
 
+// PUBLIC ROUTE: Verify Certificate Authenticity via scan QR
+app.get('/verify-certificate/:certificateNumber', async (req, res) => {
+  try {
+    const certNumber = req.params.certificateNumber;
+    const pool = require('./config/db');
+    const [[cert]] = await pool.query(
+      `SELECT gc.*, s.name AS student_name, s.student_id AS student_code, s.email AS student_email, c.title AS course_title
+       FROM generated_certificates gc
+       JOIN students s ON gc.student_id = s.id
+       JOIN courses c ON gc.course_id = c.id
+       WHERE gc.certificate_number = ?`,
+      [certNumber]
+    );
+
+    if (!cert) {
+      return res.status(404).send('<h1 style="text-align:center;margin-top:50px;color:#ef4444;font-family:sans-serif;">Certificate Verification Failed: Invalid Certificate Number</h1>');
+    }
+
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Verify Certificate - SRM</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #f3f4f6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: #1f2937;
+          }
+          .card {
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            max-width: 450px;
+            width: 90%;
+            padding: 30px;
+            text-align: center;
+            border-top: 8px solid #059669; /* emerald green top border */
+          }
+          .title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #059669;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+          }
+          .field {
+            margin-bottom: 15px;
+            text-align: left;
+            border-bottom: 1px solid #f3f4f6;
+            padding-bottom: 10px;
+          }
+          .label {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #9ca3af;
+            font-weight: bold;
+            margin-bottom: 3px;
+          }
+          .value {
+            font-size: 15px;
+            font-weight: 600;
+            color: #374151;
+          }
+          .status {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-top: 15px;
+          }
+          .status.approved {
+            background-color: #d1fae5;
+            color: #065f46;
+          }
+          .status.pending {
+            background-color: #fef3c7;
+            color: #92400e;
+          }
+          .status.rejected {
+            background-color: #fee2e2;
+            color: #991b1b;
+          }
+          .logo {
+            font-size: 13px;
+            font-weight: bold;
+            color: #9ca3af;
+            margin-top: 25px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <div class="title">✓ Verification Successful</div>
+          
+          <div class="field">
+            <div class="label">Certificate Number</div>
+            <div class="value">${cert.certificate_number}</div>
+          </div>
+          
+          <div class="field">
+            <div class="label">Student Name</div>
+            <div class="value">${cert.student_name}</div>
+          </div>
+          
+          <div class="field">
+            <div class="label">Course Completed</div>
+            <div class="value">${cert.course_title}</div>
+          </div>
+          
+          <div class="field">
+            <div class="label">Completion Date</div>
+            <div class="value">${new Date(cert.issue_date).toLocaleDateString()}</div>
+          </div>
+
+          <div class="status ${cert.status === 'approved' ? 'approved' : cert.status === 'pending_approval' ? 'pending' : 'rejected'}">
+            Status: ${cert.status === 'approved' ? 'Authentic & Approved' : cert.status === 'pending_approval' ? 'Pending Approval' : 'Rejected'}
+          </div>
+          
+          <div class="logo">SHREE RAAM MOBILE INSTITUTE</div>
+        </div>
+      </body>
+      </html>
+    `);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('<h1 style="text-align:center;margin-top:50px;color:#ef4444;font-family:sans-serif;">Server Verification Error</h1>');
+  }
+});
+
 // API Routes
+app.get('/api/health', (req, res) => res.json({ success: true, message: 'API is healthy' }));
 app.use('/api/auth', authRoutes);
 app.use('/api/master', masterRoutes);
 app.use('/api/student', studentRoutes);
@@ -213,6 +354,27 @@ async function runMigrations() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (repair_id) REFERENCES repair_requests(id) ON DELETE CASCADE
     )`);
+
+    // LMS migrations and sync: add payment_status and transaction_id to course_enrollments
+    try {
+      await pool.query("ALTER TABLE course_enrollments ADD COLUMN IF NOT EXISTS payment_status VARCHAR(50) DEFAULT 'completed'");
+      await pool.query("ALTER TABLE course_enrollments ADD COLUMN IF NOT EXISTS transaction_id VARCHAR(200) DEFAULT NULL");
+    } catch (e) {
+      console.log('Skip adding course_enrollments columns (already exists)');
+    }
+
+    // Sync legacy completed course_purchases into course_enrollments if missing
+    try {
+      await pool.query(`
+        INSERT IGNORE INTO course_enrollments (student_id, course_id, assigned_at, payment_status, transaction_id)
+        SELECT student_id, course_id, created_at, status, id
+        FROM course_purchases
+        WHERE status = 'completed'
+      `);
+      console.log('✅ Course enrollments synced with completed purchases');
+    } catch (e) {
+      console.error('Error syncing purchases to enrollments:', e.message);
+    }
 
     console.log('✅ Database migrations completed');
   } catch (err) {

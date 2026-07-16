@@ -1,15 +1,33 @@
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_srm_secure_jwt_secret_token_12345';
+// Unified Secret with fallback for safety
+const JWT_SECRET = process.env.JWT_SECRET || 'shree_raam_mobile_secret_key_2026_default';
 
-// Verify JWT Token
+/**
+ * AUTHENTICATE TOKEN MIDDLEWARE
+ * Extracts and verifies JWT from Authorization header or Cookies
+ */
 const authenticateToken = (req, res, next) => {
+  let token = null;
+
+  // 1. Check Authorization Header (Bearer Token)
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.split(' ')[1];
+  }
+
+  // 2. Fallback to Cookies if implemented (cookieParser required in server.js)
+  if (!token && req.cookies && req.cookies.token) {
+    token = req.cookies.token;
+  }
 
   if (!token) {
-    return res.status(401).json({ success: false, message: 'Access denied. No token provided.' });
+    return res.status(401).json({
+      success: false,
+      message: 'Access denied. Please login to continue.',
+      code: 'AUTH_REQUIRED'
+    });
   }
 
   try {
@@ -17,44 +35,51 @@ const authenticateToken = (req, res, next) => {
     req.user = decoded;
     next();
   } catch (err) {
-    return res.status(403).json({ success: false, message: 'Invalid or expired token.' });
+    console.error('JWT Verification Error:', err.message);
+    const message = err.name === 'TokenExpiredError' ? 'Session expired. Please login again.' : 'Invalid session. Please login again.';
+    return res.status(403).json({
+      success: false,
+      message: message,
+      code: 'AUTH_INVALID'
+    });
   }
 };
 
-// Role-Based Authorization
+/**
+ * ROLE-BASED AUTHORIZATION MIDDLEWARE
+ * Checks if the authenticated user has one of the allowed roles
+ */
 const authorize = (...roles) => {
   return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Authentication required.' });
+    }
+
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({ 
         success: false, 
-        message: `Access denied. ${req.user.role} is not authorized for this resource.` 
+        message: `Permission denied. Access restricted to: ${roles.join(', ')}.`
       });
     }
     next();
   };
 };
 
-// Generate JWT Token
+/**
+ * GENERATE JWT TOKEN
+ * Creates a signed token valid for the configured duration
+ */
 const generateToken = (user) => {
   return jwt.sign(
     { 
       id: user.id, 
       role: user.role,
       name: user.name,
-      email: user.email 
+      email: user.email || user.mobile || user.studentId
     },
     JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRE || '7d' }
   );
 };
 
-// Generate Refresh Token
-const generateRefreshToken = (user) => {
-  return jwt.sign(
-    { id: user.id, role: user.role },
-    JWT_SECRET,
-    { expiresIn: '30d' }
-  );
-};
-
-module.exports = { authenticateToken, authorize, generateToken, generateRefreshToken };
+module.exports = { authenticateToken, authorize, generateToken };

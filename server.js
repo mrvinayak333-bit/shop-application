@@ -460,7 +460,18 @@ server.listen(PORT, async () => {
   console.log(`\n🔧 SHREE RAAM MOBAILE - Mobile Repairing Service`);
   console.log(`🚀 Running on port ${PORT}`);
   console.log(`📍 Website: ${protocol}://localhost:${PORT}`);
-  console.log(`📍 API: ${protocol}://localhost:${PORT}/api\n`);
+
+  const pool = require('./config/db');
+  const { testConnection } = require('./config/db');
+
+  // Wait for DB before migrations
+  const isConnected = await testConnection();
+  if (isConnected) {
+    await runMigrations();
+  } else {
+    console.error('🛑 CRITICAL: Could not connect to database after retries. Migrations skipped.');
+  }
+
   console.log(`Default Login:`);
   console.log(`  Master:  mr.vinayak333@gmail.com / VINAYAK@333`);
   console.log(`  Admin:   admin@repairsystem.com / master123\n`);

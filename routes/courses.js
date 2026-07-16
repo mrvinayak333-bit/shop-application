@@ -2,16 +2,19 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
 
-// PUBLIC: list all active courses
-router.get('/', async (req, res) => {
+/**
+ * PUBLIC: Get Active Courses for Home Page
+ * Does not require authentication
+ */
+router.get('/public', async (req, res) => {
   try {
-    const [rows] = await pool.query(
-      'SELECT id, title, description, price, is_free, banner_image, status FROM courses WHERE status = "active" ORDER BY created_at DESC'
+    const [courses] = await pool.query(
+      "SELECT id, title as course_name, description, price, banner_image, status FROM courses WHERE status = 'active'"
     );
-    res.json({ success: true, courses: rows });
+    res.json({ success: true, courses });
   } catch (err) {
-    console.error('Public get courses error:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    console.error('Public Courses Error:', err.message);
+    res.status(500).json({ success: false, message: 'Unable to load courses at this moment.' });
   }
 });
 

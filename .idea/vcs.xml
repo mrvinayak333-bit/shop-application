@@ -7,6 +7,7 @@
     <mapping directory="$PROJECT_DIR$/shop-application/SRM REPAIR" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/shop-application/shop-application" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/shop-application/shop-appplication" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/shop-application/srm final" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/srm-shop" vcs="Git" />
   </component>
 </project>

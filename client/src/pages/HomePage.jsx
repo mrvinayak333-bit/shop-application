@@ -7,7 +7,7 @@ import Navbar from '../components/Navbar';
 import ToastContainer, { showToast } from '../components/Toast';
 
 export default function HomePage() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, login } = useAuth();
   const [trackingId, setTrackingId] = useState('');
   const [mobile, setMobile] = useState('');
   const [password, setPassword] = useState('');
@@ -24,13 +24,11 @@ export default function HomePage() {
     e.preventDefault();
     if (!mobile || !password) return showToast('Mobile and password required', 'error');
     setLoading(true);
-    const res = await api.post('/auth/login', { mobile, password, role: 'customer' });
+    const res = await login(null, password, 'customer', mobile);
     setLoading(false);
     if (res.success) {
-      localStorage.setItem('token', res.token);
-      localStorage.setItem('user', JSON.stringify(res.user));
-      window.location.reload();
       showToast('Login successful!');
+      setTimeout(() => window.location.reload(), 500);
     } else {
       showToast(res.message || 'Login failed', 'error');
     }

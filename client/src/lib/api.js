@@ -153,6 +153,40 @@ async function request(url, options = {}) {
       }
       
       if (method === 'POST') {
+        if (table === 'admins' || table === 'technicians' || table === 'students') {
+          // Determine email and password for auth signup
+          let authEmail = body.email;
+          let authPass = body.password;
+          
+          if (table === 'students') {
+            authEmail = body.email || `student_${body.student_id.toLowerCase()}@student.srms.com`;
+            authPass = body.password || body.student_id; // students default password is student_id
+          }
+
+          if (authEmail && authPass) {
+            console.log(`[API] Creating user in Supabase Auth first: ${authEmail}`);
+            const { error: authSignUpErr } = await supabase.auth.signUp({
+              email: authEmail,
+              password: authPass,
+              options: {
+                data: {
+                  role: table.slice(0, -1), // admin, technician, student
+                  name: body.name
+                }
+              }
+            });
+            if (authSignUpErr) {
+              console.error('[API] Auth signUp failed for created user:', authSignUpErr.message);
+              return { success: false, message: `Auth creation failed: ${authSignUpErr.message}` };
+            }
+          }
+          
+          // Hash password for database storage
+          if (body.password) {
+            body.password = bcrypt.hashSync(body.password, 10);
+          }
+        }
+
         const { data, error } = await supabase.from(table).insert(body).select();
         if (error) throw error;
         return { success: true, message: 'Created successfully', [table.slice(0, -1)]: data[0] };
@@ -252,26 +286,38 @@ async function request(url, options = {}) {
         });
 
         if (authErr) {
+          console.error('[API Login] Supabase Auth signInWithPassword error:', authErr.message);
+
+          if (authErr.message.includes('Email not confirmed')) {
+            return { success: false, message: 'Email verification required. Please verify your email before logging in.' };
+          }
+
           // Attempt Dynamic SignUp if not present in Auth.users
-          if (authErr.message.includes('Invalid login credentials') || authErr.message.includes('Email not confirmed') || authErr.status === 400) {
-            await supabase.auth.signUp({
+          if (authErr.message.includes('Invalid login credentials') || authErr.status === 400) {
+            const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
               email: authEmail,
               password: password,
               options: { data: { role, name: userData.name } }
             });
-            const { data: authRetry, error: retryErr } = await supabase.auth.signInWithPassword({
-              email: authEmail,
-              password: password
-            });
-            if (!retryErr && authRetry?.session) {
-              token = authRetry.session.access_token;
+            if (signUpErr) {
+              console.error('[API Login] Dynamic signup error:', signUpErr.message);
+              return { success: false, message: signUpErr.message };
             }
+            if (signUpData.user && !signUpData.session) {
+              return { success: false, message: 'Seeded account registered in Supabase. Email verification is required. Please check your email to verify before logging in.' };
+            }
+            if (signUpData.session) {
+              token = signUpData.session.access_token;
+            }
+          } else {
+            return { success: false, message: authErr.message };
           }
         } else if (authData?.session) {
           token = authData.session.access_token;
         }
       } catch (err) {
-        console.error('Supabase Auth error (falling back to database authentication):', err);
+        console.error('Supabase Auth error:', err);
+        return { success: false, message: err.message };
       }
 
       // Update Last Login
@@ -300,6 +346,19 @@ async function request(url, options = {}) {
       const { data: mobileCheck } = await supabase.from('customers').select('id').eq('mobile', mobile);
       if (mobileCheck?.length > 0) return { success: false, message: 'Mobile number already registered' };
 
+      // Sign up in Supabase Auth first
+      const authEmail = email || `customer_${mobile}@srms.com`;
+      const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+        email: authEmail,
+        password: password,
+        options: { data: { role: 'customer', name } }
+      });
+
+      if (signUpErr) {
+        console.error('[API Register] Supabase Auth signUp failed:', signUpErr.message);
+        return { success: false, message: signUpErr.message };
+      }
+
       const hashedPassword = bcrypt.hashSync(password, 10);
       const { data, error } = await supabase.from('customers').insert({
         name, email: email || null, password: hashedPassword, mobile,
@@ -307,27 +366,19 @@ async function request(url, options = {}) {
         status: 'active'
       }).select();
 
-      if (error) throw error;
+      if (error) {
+        console.error('[API Register] Database profile insert failed:', error.message);
+        return { success: false, message: `Database profile insert failed: ${error.message}` };
+      }
       const customer = data[0];
 
-      // Sign up in Supabase Auth
-      const authEmail = email || `customer_${mobile}@srms.com`;
+      if (signUpData.user && !signUpData.session) {
+        return { success: true, message: 'Registration successful! Please check your email to verify your account before logging in.', unconfirmed: true, user: { ...customer, role: 'customer' } };
+      }
+
       let token = 'mock_token_' + Math.random().toString(36).substring(2);
-      try {
-        await supabase.auth.signUp({
-          email: authEmail,
-          password: password,
-          options: { data: { role: 'customer', name } }
-        });
-        const { data: authIn } = await supabase.auth.signInWithPassword({
-          email: authEmail,
-          password: password
-        });
-        if (authIn?.session) {
-          token = authIn.session.access_token;
-        }
-      } catch (e) {
-        console.error('Supabase Auth register failure', e);
+      if (signUpData.session) {
+        token = signUpData.session.access_token;
       }
 
       return { success: true, message: 'Registration successful', token, user: { ...customer, role: 'customer' } };

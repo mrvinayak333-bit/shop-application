@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Smartphone, User, Mail, Lock, Phone, MapPin } from 'lucide-react';
-import api from '../lib/api';
+import { supabase } from '../lib/supabase';
+import bcrypt from 'bcryptjs';
 import ToastContainer, { showToast } from '../components/Toast';
 
 export default function CustomerRegister() {
@@ -19,16 +20,71 @@ export default function CustomerRegister() {
       return showToast('Name, mobile and password are required', 'error');
     }
     setLoading(true);
-    const res = await api.post('/customer/register', form);
-    setLoading(false);
 
-    if (res.success) {
-      localStorage.setItem('token', res.token);
-      localStorage.setItem('user', JSON.stringify(res.user));
-      showToast('Registration successful!');
-      setTimeout(() => navigate('/dashboard/customer'), 500);
-    } else {
-      showToast(res.message || 'Registration failed', 'error');
+    try {
+      const authEmail = form.email || `customer_${form.mobile}@srms.com`;
+      
+      console.log(`[Register] Attempting Supabase Auth signUp for: ${authEmail}`);
+      
+      // 1. Call supabase.auth.signUp
+      const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+        email: authEmail,
+        password: form.password,
+        options: {
+          data: {
+            name: form.name,
+            role: 'customer'
+          }
+        }
+      });
+
+      if (signUpErr) {
+        console.error('[Register] Supabase Auth signUp failed:', signUpErr.message);
+        setLoading(false);
+        return showToast(signUpErr.message, 'error');
+      }
+
+      // 2. Hash password and insert profile record in customers table
+      const hashedPassword = bcrypt.hashSync(form.password, 10);
+      const { data: customerData, error: dbErr } = await supabase
+        .from('customers')
+        .insert({
+          name: form.name,
+          email: form.email || null,
+          password: hashedPassword,
+          mobile: form.mobile,
+          address: form.address || null,
+          city: form.city || null,
+          state: form.state || null,
+          pincode: form.pincode || null,
+          status: 'active'
+        })
+        .select();
+
+      if (dbErr) {
+        console.error('[Register] Database profile insert failed:', dbErr.message);
+        setLoading(false);
+        return showToast('Database profile creation failed: ' + dbErr.message, 'error');
+      }
+
+      setLoading(false);
+
+      // 3. Handle session verification and route
+      if (signUpData.user && !signUpData.session) {
+        console.log('[Register] Email confirmation is enabled on this project.');
+        showToast('Registration successful! Please check your email to verify your account before logging in.', 'info');
+        setTimeout(() => navigate('/login/customer'), 3000);
+      } else if (signUpData.session) {
+        console.log('[Register] Immediate login enabled.');
+        localStorage.setItem('token', signUpData.session.access_token);
+        localStorage.setItem('user', JSON.stringify({ ...customerData[0], role: 'customer' }));
+        showToast('Registration successful!');
+        setTimeout(() => navigate('/dashboard/customer'), 500);
+      }
+    } catch (err) {
+      console.error('[Register] Unexpected registration exception:', err);
+      setLoading(false);
+      showToast('Registration failed: ' + (err.message || err), 'error');
     }
   };
 

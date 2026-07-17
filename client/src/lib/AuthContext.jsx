@@ -1,7 +1,8 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import api, { fetchProfileByEmail } from './api';
+import { fetchProfileByEmail } from './api';
 import { supabase } from './supabase';
 import { Device } from '@capacitor/device';
+import bcrypt from 'bcryptjs';
 
 const AuthContext = createContext(null);
 
@@ -53,42 +54,155 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = async (email, password, role, mobileOrStudentId = null) => {
-    let loginData = { password, role };
+    let authEmail = email;
     
+    // Resolve email for customer/student
     if (role === 'customer' && mobileOrStudentId) {
-      loginData.mobile = mobileOrStudentId;
+      authEmail = `customer_${mobileOrStudentId}@srms.com`;
+      const { data: cData } = await supabase.from('customers').select('email').eq('mobile', mobileOrStudentId);
+      if (cData && cData[0]?.email) {
+        authEmail = cData[0].email;
+      }
     } else if (role === 'student' && mobileOrStudentId) {
-      loginData.studentId = mobileOrStudentId;
+      authEmail = `student_${mobileOrStudentId.toLowerCase()}@student.srms.com`;
+      const { data: sData } = await supabase.from('students').select('email').eq('student_id', mobileOrStudentId);
+      if (sData && sData[0]?.email) {
+        authEmail = sData[0].email;
+      }
+    }
+
+    try {
+      console.log(`[Auth] Attempting login for ${authEmail} (Role: ${role})`);
       
-      // Course Security: Get Android device ID, fall back to persistent browser UUID
+      // Check status of user in public profile first
+      const profile = await fetchProfileByEmail(authEmail);
+      if (profile && profile.status === 'inactive') {
+        console.warn(`[Auth] Inactive account tried to login: ${authEmail}`);
+        return { success: false, message: 'Account is inactive' };
+      }
+
+      // If it's a student, perform device binding check
       let deviceId = null;
-      try {
-        const info = await Device.getId();
-        deviceId = info.identifier;
-      } catch (e) {
-        // Fallback for web browser testing
-        deviceId = localStorage.getItem('srms_device_id');
-        if (!deviceId) {
-          deviceId = 'web_' + Math.random().toString(36).substring(2, 15) + '_' + Date.now().toString(36);
-          localStorage.setItem('srms_device_id', deviceId);
+      if (role === 'student') {
+        try {
+          const info = await Device.getId();
+          deviceId = info.identifier;
+        } catch (e) {
+          deviceId = localStorage.getItem('srms_device_id');
+          if (!deviceId) {
+            deviceId = 'web_' + Math.random().toString(36).substring(2, 15) + '_' + Date.now().toString(36);
+            localStorage.setItem('srms_device_id', deviceId);
+          }
+        }
+
+        if (profile) {
+          if (profile.device_id && profile.device_id !== deviceId) {
+            console.warn(`[Auth] Device ID mismatch for student: ${profile.student_id}`);
+            return { success: false, message: 'This account is bound to another device.' };
+          }
         }
       }
-      loginData.deviceId = deviceId;
-    } else if (email) {
-      loginData.email = email;
-    }
-    
-    try {
-      const res = await api.post('/auth/login', loginData);
-      if (res.success) {
-        localStorage.setItem('token', res.token);
-        localStorage.setItem('user', JSON.stringify(res.user));
-        setUser(res.user);
+
+      // Try signing in using Supabase Auth
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: authEmail,
+        password: password
+      });
+
+      if (error) {
+        console.error('[Auth] Supabase Auth signInWithPassword error:', error.message);
+
+        if (error.message.includes('Email not confirmed')) {
+          return { success: false, message: 'Email verification required. Please verify your email before logging in.' };
+        }
+
+        // DYNAMIC SIGNUP FALLBACK:
+        // If the user exists in our public DB tables but not in Supabase Auth, dynamically sign them up
+        if (profile && (error.message.includes('Invalid login credentials') || error.status === 400)) {
+          console.log('[Auth] User exists in DB but not in Supabase Auth. Checking password...');
+          
+          let isMatch = profile.password === password;
+          if (!isMatch) {
+            try {
+              isMatch = bcrypt.compareSync(password, profile.password);
+            } catch (err) {
+              isMatch = false;
+            }
+          }
+          // Special fallback for students where initial password is their student ID
+          if (!isMatch && role === 'student' && profile.student_id === password) {
+            isMatch = true;
+          }
+
+          if (isMatch) {
+            console.log('[Auth] Password verified successfully. Registering in Supabase Auth...');
+            
+            const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+              email: authEmail,
+              password: password,
+              options: {
+                data: { role, name: profile.name }
+              }
+            });
+
+            if (signUpErr) {
+              console.error('[Auth] Dynamic signup error:', signUpErr.message);
+              return { success: false, message: signUpErr.message };
+            }
+
+            // Bind student device ID if needed
+            if (role === 'student' && !profile.device_id && deviceId) {
+              await supabase.from('students').update({ device_id: deviceId }).eq('id', profile.id);
+              profile.device_id = deviceId;
+            }
+
+            // Check if email confirmation is required
+            if (signUpData.user && !signUpData.session) {
+              return { success: false, message: 'Account registered in Supabase. Email verification is required. Please check your email to verify before logging in.' };
+            }
+
+            if (signUpData.session) {
+              localStorage.setItem('token', signUpData.session.access_token);
+              localStorage.setItem('user', JSON.stringify(profile));
+              setUser(profile);
+              return { success: true, user: profile, token: signUpData.session.access_token };
+            }
+          }
+        }
+
+        return { success: false, message: error.message };
       }
-      return res;
+
+      // If signin is successful
+      if (role === 'student' && !profile.device_id && deviceId) {
+        // Bind the device ID now
+        await supabase.from('students').update({ device_id: deviceId }).eq('id', profile.id);
+        profile.device_id = deviceId;
+      }
+
+      localStorage.setItem('token', data.session.access_token);
+      localStorage.setItem('user', JSON.stringify(profile));
+      setUser(profile);
+
+      // Log login activity
+      try {
+        const table = role === 'master' ? 'master_users' : role === 'admin' ? 'admins' : role === 'technician' ? 'technicians' : role === 'student' ? 'students' : 'customers';
+        await supabase.from(table).update({ last_login: new Date().toISOString() }).eq('id', profile.id);
+        
+        await supabase.from('activity_logs').insert({
+          user_id: profile.id,
+          user_role: role,
+          action: 'LOGIN',
+          description: `${role} logged in`
+        });
+      } catch (err) {
+        console.warn('Logging login activity failed:', err);
+      }
+
+      return { success: true, user: profile, token: data.session.access_token };
     } catch (err) {
-      console.error('Login error:', err);
-      return { success: false, message: 'Network error. Please try again.' };
+      console.error('[Auth] Unexpected login error:', err);
+      return { success: false, message: err.message || 'An unexpected error occurred.' };
     }
   };
 

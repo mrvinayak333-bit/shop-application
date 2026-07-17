@@ -335,54 +335,6 @@ async function request(url, options = {}) {
       return { success: true, message: 'Login successful', token, user: { ...userData, role } };
     }
 
-    if (pathname === '/customer/register' && method === 'POST') {
-      const { name, email, password, mobile, address, city, state, pincode } = body;
-      
-      if (email) {
-        const { data: existing } = await supabase.from('customers').select('id').eq('email', email);
-        if (existing?.length > 0) return { success: false, message: 'Email already registered' };
-      }
-
-      const { data: mobileCheck } = await supabase.from('customers').select('id').eq('mobile', mobile);
-      if (mobileCheck?.length > 0) return { success: false, message: 'Mobile number already registered' };
-
-      // Sign up in Supabase Auth first
-      const authEmail = email || `customer_${mobile}@srms.com`;
-      const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
-        email: authEmail,
-        password: password,
-        options: { data: { role: 'customer', name } }
-      });
-
-      if (signUpErr) {
-        console.error('[API Register] Supabase Auth signUp failed:', signUpErr.message);
-        return { success: false, message: signUpErr.message };
-      }
-
-      const hashedPassword = bcrypt.hashSync(password, 10);
-      const { data, error } = await supabase.from('customers').insert({
-        name, email: email || null, password: hashedPassword, mobile,
-        address: address || null, city: city || null, state: state || null, pincode: pincode || null,
-        status: 'active'
-      }).select();
-
-      if (error) {
-        console.error('[API Register] Database profile insert failed:', error.message);
-        return { success: false, message: `Database profile insert failed: ${error.message}` };
-      }
-      const customer = data[0];
-
-      if (signUpData.user && !signUpData.session) {
-        return { success: true, message: 'Registration successful! Please check your email to verify your account before logging in.', unconfirmed: true, user: { ...customer, role: 'customer' } };
-      }
-
-      let token = 'mock_token_' + Math.random().toString(36).substring(2);
-      if (signUpData.session) {
-        token = signUpData.session.access_token;
-      }
-
-      return { success: true, message: 'Registration successful', token, user: { ...customer, role: 'customer' } };
-    }
 
     // ----------------------------------------------------
     // CUSTOMER DASHBOARD & CUSTOMER ACTIONS

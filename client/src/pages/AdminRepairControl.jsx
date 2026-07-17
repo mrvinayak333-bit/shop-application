@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Camera, MapPin, Upload, CheckCircle, AlertCircle, Download, Package, User, Clock, FileText, Printer, Eye, DollarSign, ThumbsUp, ThumbsDown, Truck, CreditCard, Shield, Star } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-import api, { getApiBase } from '../lib/api';
+import api from '../lib/api';
 import Navbar from '../components/Navbar';
 import StatusBadge from '../components/StatusBadge';
 import Loading from '../components/Loading';
@@ -316,14 +316,7 @@ export default function AdminRepairControl() {
     if (customerSelfie) formData.append('customer_selfie', customerSelfie);
 
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${getApiBase()}/admin/pickup`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData
-      });
-      const data = await res.json();
-      
+      const data = await api.upload('/admin/pickup', formData);
       if (data.success) {
         setPickupDone(true);
         setPickupDetails(data.pickupDetails);
@@ -340,12 +333,9 @@ export default function AdminRepairControl() {
   // Download Excel reports
   const downloadReport = async (type) => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${getApiBase()}/admin/export/${type}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const blob = await res.blob();
+      const csvContent = await api.get(`/admin/export/${type}`);
+      if (csvContent && typeof csvContent === 'string') {
+        const blob = new Blob([csvContent], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;

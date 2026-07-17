@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import api from './api';
+import api, { fetchProfileByEmail } from './api';
+import { supabase } from './supabase';
 import { Device } from '@capacitor/device';
 
 const AuthContext = createContext(null);
@@ -8,18 +9,47 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Synchronize Supabase Auth Session
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
-    if (token && savedUser) {
+    async function initSession() {
       try {
-        setUser(JSON.parse(savedUser));
-      } catch {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          const profile = await fetchProfileByEmail(session.user.email);
+          if (profile) {
+            setUser(profile);
+            localStorage.setItem('token', session.access_token);
+            localStorage.setItem('user', JSON.stringify(profile));
+          }
+        }
+      } catch (err) {
+        console.error('Failed to initialize session:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    initSession();
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session) {
+        const profile = await fetchProfileByEmail(session.user.email);
+        if (profile) {
+          setUser(profile);
+          localStorage.setItem('token', session.access_token);
+          localStorage.setItem('user', JSON.stringify(profile));
+        }
+      } else {
+        setUser(null);
         localStorage.removeItem('token');
         localStorage.removeItem('user');
       }
-    }
-    setLoading(false);
+    });
+
+    return () => {
+      if (subscription) subscription.unsubscribe();
+    };
   }, []);
 
   const login = async (email, password, role, mobileOrStudentId = null) => {
@@ -62,7 +92,12 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.error('Supabase signout failed', e);
+    }
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);

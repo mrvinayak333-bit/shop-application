@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
-const pool = require('../config/db');
+const supabase = require('../config/supabase');
 const { authenticateToken, authorize, generateToken } = require('../middleware/auth');
 
 router.post('/register', async (req, res) => {
@@ -10,78 +10,112 @@ router.post('/register', async (req, res) => {
     if (!name || !mobile || !password) {
       return res.status(400).json({ success: false, message: 'Name, mobile and password are required' });
     }
+
     if (email) {
-      const [existing] = await pool.query('SELECT id FROM customers WHERE email = ?', [email]);
-      if (existing.length > 0) return res.status(409).json({ success: false, message: 'Email already registered' });
+      const { data: existing } = await supabase.from('customers').select('id').eq('email', email);
+      if (existing?.length > 0) return res.status(409).json({ success: false, message: 'Email already registered' });
     }
-    const [mobileCheck] = await pool.query('SELECT id FROM customers WHERE mobile = ?', [mobile]);
-    if (mobileCheck.length > 0) return res.status(409).json({ success: false, message: 'Mobile number already registered' });
+
+    const { data: mobileCheck } = await supabase.from('customers').select('id').eq('mobile', mobile);
+    if (mobileCheck?.length > 0) return res.status(409).json({ success: false, message: 'Mobile number already registered' });
+
     const hashedPassword = await bcrypt.hash(password, 10);
-    const [result] = await pool.query(
-      'INSERT INTO customers (name, email, password, mobile, address, city, state, pincode) VALUES (?,?,?,?,?,?,?,?)',
-      [name, email || null, hashedPassword, mobile, address || null, city || null, state || null, pincode || null]
-    );
-    const token = generateToken({ id: result.insertId, role: 'customer', name, email: email || '' });
+    const { data, error } = await supabase.from('customers').insert({
+      name, email: email || null, password: hashedPassword, mobile,
+      address: address || null, city: city || null, state: state || null, pincode: pincode || null,
+      status: 'active'
+    }).select();
+
+    if (error) throw error;
+    const customer = data[0];
+
+    const token = generateToken({ id: customer.id, role: 'customer', name, email: email || '' });
     
-    // Trigger welcome email notification asynchronously
     if (email) {
       const { sendMailFromTemplate } = require('../services/emailService');
       sendMailFromTemplate(email, 'welcome_email_template', { name }).catch(e => console.error(e));
     }
 
-    res.status(201).json({ success: true, message: 'Registration successful', token, user: { id: result.insertId, name, email, mobile, role: 'customer' } });
+    res.status(201).json({ success: true, message: 'Registration successful', token, user: { ...customer, role: 'customer' } });
   } catch (err) {
+    console.error('Customer Register Error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
 router.get('/dashboard', authenticateToken, authorize('customer'), async (req, res) => {
   try {
-    const [[customer]] = await pool.query('SELECT id, name, email, mobile, address, city, total_repairs FROM customers WHERE id=?', [req.user.id]);
-    const [repairs] = await pool.query(
-      `SELECT rr.id, rr.tracking_number, rr.device_type, rr.brand, rr.model, rr.status, rr.created_at,
-       rr.repair_completed_at, rr.admin_verified_at, rr.handover_at, rr.customer_confirmed_at,
-       rr.delivered_at, rr.feedback_rating, rr.feedback_comments, rr.feedback_at,
-       rr.payment_screenshot, rr.payment_verified_at, rr.delivery_type_option,
-       rr.delivery_otp, rr.delivered_by,
-       t.name as tech,
-       q.id as quotation_id, q.total_cost, q.parts_cost, q.labor_cost, q.other_charges, q.discount,
-       q.diagnosis, q.spare_parts, q.estimated_days, q.notes as quotation_notes,
-       q.job_card_no, q.customer_name, q.device_name, q.imei,
-       q.status as quotation_status, q.approved_at, q.reject_reason, q.created_at as quotation_date
-       FROM repair_requests rr 
-       LEFT JOIN technicians t ON rr.assigned_technician=t.id
-       LEFT JOIN quotations q ON rr.id = q.repair_id AND q.id = (SELECT MAX(id) FROM quotations WHERE repair_id = rr.id)
-       WHERE rr.customer_id=? AND rr.status NOT IN ("delivered","cancelled","successfully_delivered","feedback_given") ORDER BY rr.created_at DESC`, [req.user.id]
-    );
-    const [history] = await pool.query(
-      'SELECT tracking_number, device_type, brand, status, created_at, feedback_rating, feedback_comments FROM repair_requests WHERE customer_id=? AND status IN ("delivered","successfully_delivered","feedback_given","cancelled") ORDER BY created_at DESC LIMIT 10', [req.user.id]
-    );
+    const userId = req.user.id;
+
+    // 1. Get Customer Details
+    const { data: customer, error: cErr } = await supabase.from('customers').select('*').eq('id', userId).single();
+    if (cErr) throw cErr;
+
+    // 2. Get Active Repairs with joins
+    // Note: Supabase handles joins via select string
+    const { data: repairs, error: rErr } = await supabase
+      .from('repair_requests')
+      .select(`
+        *,
+        technician:assigned_technician(name),
+        quotations(*)
+      `)
+      .eq('customer_id', userId)
+      .not('status', 'in', '("delivered","cancelled","successfully_delivered","feedback_given")')
+      .order('created_at', { ascending: false });
+
+    if (rErr) throw rErr;
+
+    // 3. Get History
+    const { data: history, error: hErr } = await supabase
+      .from('repair_requests')
+      .select('tracking_number, device_type, brand, status, created_at, feedback_rating, feedback_comments')
+      .eq('customer_id', userId)
+      .in('status', ["delivered","successfully_delivered","feedback_given","cancelled"])
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    // 4. Get Notifications
+    const { data: notifications } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('user_role', 'customer')
+      .order('created_at', { ascending: false })
+      .limit(10);
     
-    // Get notifications for customer
-    const [notifications] = await pool.query(
-      'SELECT * FROM notifications WHERE user_id=? AND user_role="customer" ORDER BY created_at DESC LIMIT 10',
-      [req.user.id]
-    );
-    
-    res.json({ success: true, customer, activeRepairs: repairs, repairHistory: history, notifications });
+    // Map data to match expected frontend format if necessary
+    const mappedRepairs = repairs.map(rr => ({
+      ...rr,
+      tech: rr.technician?.name,
+      // Pick the latest quotation
+      quotation_id: rr.quotations?.[rr.quotations.length - 1]?.id,
+      total_cost: rr.quotations?.[rr.quotations.length - 1]?.total_cost,
+      quotation_status: rr.quotations?.[rr.quotations.length - 1]?.status
+    }));
+
+    res.json({ success: true, customer, activeRepairs: mappedRepairs, repairHistory: history, notifications });
   } catch (err) {
-    console.error(err);
+    console.error('Customer Dashboard Error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
 router.get('/profile', authenticateToken, authorize('customer'), async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id,name,email,mobile,alternate_mobile,address,city,state,pincode,total_repairs FROM customers WHERE id=?', [req.user.id]);
-    res.json({ success: true, customer: rows[0] });
+    const { data, error } = await supabase.from('customers').select('*').eq('id', req.user.id).single();
+    if (error) throw error;
+    res.json({ success: true, customer: data });
   } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
 router.put('/profile', authenticateToken, authorize('customer'), async (req, res) => {
   try {
     const { name, email, alternate_mobile, address, city, state, pincode } = req.body;
-    await pool.query('UPDATE customers SET name=?,email=?,alternate_mobile=?,address=?,city=?,state=?,pincode=? WHERE id=?', [name,email,alternate_mobile,address,city,state,pincode,req.user.id]);
+    const { error } = await supabase.from('customers')
+      .update({ name, email, alternate_mobile, address, city, state, pincode })
+      .eq('id', req.user.id);
+    if (error) throw error;
     res.json({ success: true, message: 'Profile updated' });
   } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
 });

@@ -1,70 +1,64 @@
-const mysql = require('mysql2/promise');
+const supabase = require('../config/supabase');
 const fs = require('fs');
 const path = require('path');
-require('dotenv').config();
 
 /**
- * INITIALIZE DATABASE SCRIPT
- * Creates the database and all tables from PROD_SCHEMA.sql
- * Includes automatic retry for cloud deployments
+ * 🚀 SUPABASE INITIALIZATION & VERIFICATION
  */
-async function initDatabase(retries = 5, delay = 5000) {
-  let connection;
+async function checkSupabase() {
+  console.log('\n--- 🛠️ SRM SUPABASE DATABASE VERIFICATION ---');
 
-  console.log('--- Initializing Database ---');
-  console.log('Host:', process.env.DB_HOST || 'localhost');
-  console.log('Database:', process.env.DB_NAME || 'mobile_repair_system');
+  const tables = [
+    'master_users', 'admins', 'technicians', 'customers', 'students',
+    'repair_requests', 'repair_status', 'quotations', 'invoices',
+    'courses', 'course_enrollments', 'settings', 'notifications',
+    'laptop_repairs', 'commission_ledger', 'activity_logs'
+  ];
 
-  for (let i = 0; i < retries; i++) {
+  let missingTables = [];
+
+  console.log(`⏳ Checking ${tables.length} tables in public schema...`);
+
+  for (const table of tables) {
     try {
-      // Connect without selecting database first
-      connection = await mysql.createConnection({
-        host: process.env.DB_HOST || 'localhost',
-        port: parseInt(process.env.DB_PORT) || 3306,
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-        multipleStatements: true,
-        connectTimeout: 30000,
-        ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : null
-      });
-
-      console.log(`✅ [Attempt ${i + 1}] Connected to MySQL server!`);
-
-      // Read and execute schema
-      const schemaPath = path.join(__dirname, 'PROD_SCHEMA.sql');
-      if (!fs.existsSync(schemaPath)) {
-        throw new Error(`Schema file not found at ${schemaPath}`);
+      const { error } = await supabase.from(table).select('count').limit(1);
+      if (error && (error.code === 'PGRST116' || error.message.includes('does not exist'))) {
+        missingTables.push(table);
       }
-
-      const schema = fs.readFileSync(schemaPath, 'utf8');
-
-      console.log('⏳ Creating database and tables from PROD_SCHEMA.sql...');
-      await connection.query(schema);
-
-      console.log('🎉 Database initialized successfully!');
-      console.log('Database: mobile_repair_system');
-      console.log('Tables created: 31');
-      console.log('\nDefault Login Credentials:');
-      console.log('  Master:  mr.vinayak333@gmail.com / VINAYAK@333');
-      console.log('  Admin:   admin@repairsystem.com / master123');
-
-      await connection.end();
-      process.exit(0);
-
-    } catch (err) {
-      console.error(`❌ [Attempt ${i + 1}] Initialization failed:`, err.message);
-
-      if (connection) await connection.end().catch(() => {});
-
-      if (i < retries - 1) {
-        console.log(`Retrying in ${delay / 1000}s...`);
-        await new Promise(res => setTimeout(res, delay));
-      } else {
-        console.error('🛑 CRITICAL: Max retries reached. Database initialization aborted.');
-        process.exit(1);
-      }
+    } catch (e) {
+      missingTables.push(table);
     }
   }
+
+  if (missingTables.length === 0) {
+    console.log('✅ ALL TABLES DETECTED! Database is ready.');
+  } else {
+    console.log(`\n⚠️ Missing Tables (${missingTables.length}):`);
+    console.log(missingTables.join(', '));
+    console.log('\n--- 📋 NEXT STEPS (ACTION REQUIRED) ---');
+    console.log('1. Go to: https://supabase.com/dashboard/project/rikdfuplqxpquzztyqwv/sql');
+    console.log('2. Click "New Query"');
+    console.log('3. Open your local file: database/PROD_SCHEMA.sql');
+    console.log('4. Copy ALL content and paste it into the Supabase SQL Editor');
+    console.log('5. Click "RUN"');
+    console.log('6. Refresh this script to verify.');
+  }
+
+  // Check Master Admin
+  try {
+    const { data: master } = await supabase.from('master_users').select('id').eq('email', 'mr.vinayak333@gmail.com');
+    if (!master?.length) {
+      console.log('\n👤 Master Account: Not found (Will be auto-created on server start)');
+    } else {
+      console.log('\n👤 Master Account: Verified (mr.vinayak333@gmail.com)');
+    }
+  } catch (e) {}
+
+  console.log('\n------------------------------------------\n');
+  process.exit(0);
 }
 
-initDatabase();
+checkSupabase().catch(err => {
+  console.error('❌ Error:', err.message);
+  process.exit(1);
+});

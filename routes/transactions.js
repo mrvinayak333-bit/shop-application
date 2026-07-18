@@ -262,7 +262,7 @@ router.put('/commission-settings/:id', authenticateToken, authorize('admin', 'ma
 router.get('/admin/students', authenticateToken, authorize('admin', 'master'), async (req, res) => {
   try {
     const [students] = await pool.query(`
-      SELECT id, student_id, name, email, mobile, class, status, created_at
+      SELECT id, student_id, name, email, mobile, course AS class, status, created_at
       FROM students
       ORDER BY name ASC
     `);

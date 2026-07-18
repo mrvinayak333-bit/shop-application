@@ -32,12 +32,12 @@ router.get('/student/purchased', authenticateToken, authorize('student'), async 
     const studentId = req.user.id;
     const [courses] = await pool.query(`
       SELECT c.id, c.course_name as title, c.description, c.price, c.duration,
-             cp.purchase_date, cp.id as purchase_id,
+             cp.created_at AS purchase_date, cp.id as purchase_id,
              (SELECT COUNT(*) FROM course_materials WHERE course_id = c.id) as material_count
       FROM course_purchases cp
       JOIN courses c ON cp.course_id = c.id
       WHERE cp.student_id = ? AND cp.status = 'completed'
-      ORDER BY cp.purchase_date DESC
+      ORDER BY cp.created_at DESC
     `, [studentId]);
     res.json({ success: true, courses });
   } catch (err) {
@@ -271,13 +271,13 @@ router.get('/admin/students', authenticateToken, authorize('admin', 'master'), a
 router.get('/admin/all-purchases', authenticateToken, authorize('admin', 'master'), async (req, res) => {
   try {
     const [purchases] = await pool.query(`
-      SELECT cp.id, cp.student_id, cp.course_id, cp.amount_paid, cp.payment_method, cp.status, cp.purchase_date,
+      SELECT cp.id, cp.student_id, cp.course_id, cp.amount_paid, cp.payment_method, cp.status, cp.created_at AS purchase_date,
              s.name as student_name, s.student_id, s.email as student_email,
              c.course_name, c.price
       FROM course_purchases cp
       JOIN students s ON cp.student_id = s.id
       JOIN courses c ON cp.course_id = c.id
-      ORDER BY cp.purchase_date DESC
+      ORDER BY cp.created_at DESC
     `);
     res.json({ success: true, purchases });
   } catch (err) {
@@ -290,13 +290,13 @@ router.get('/admin/all-purchases', authenticateToken, authorize('admin', 'master
 router.get('/all-purchases', authenticateToken, authorize('admin', 'master'), async (req, res) => {
   try {
     const [purchases] = await pool.query(`
-      SELECT cp.id, cp.student_id, cp.course_id, cp.amount_paid, cp.payment_method, cp.status, cp.purchase_date,
+      SELECT cp.id, cp.student_id, cp.course_id, cp.amount_paid, cp.payment_method, cp.status, cp.created_at AS purchase_date,
              s.name as student_name, s.student_id, s.email as student_email,
              c.course_name, c.price
       FROM course_purchases cp
       JOIN students s ON cp.student_id = s.id
       JOIN courses c ON cp.course_id = c.id
-      ORDER BY cp.purchase_date DESC
+      ORDER BY cp.created_at DESC
     `);
     res.json({ success: true, purchases });
   } catch (err) {
@@ -372,13 +372,13 @@ router.delete('/admin/purchase/:id', authenticateToken, authorize('admin', 'mast
 router.get('/transactions/all-purchases', authenticateToken, authorize('admin', 'master'), async (req, res) => {
   try {
     const [purchases] = await pool.query(`
-      SELECT cp.id, cp.student_id, cp.course_id, cp.amount_paid, cp.payment_method, cp.status, cp.purchase_date,
+      SELECT cp.id, cp.student_id, cp.course_id, cp.amount_paid, cp.payment_method, cp.status, cp.created_at AS purchase_date,
              s.name as student_name, s.student_id, s.email as student_email,
              c.course_name, c.price
       FROM course_purchases cp
       JOIN students s ON cp.student_id = s.id
       JOIN courses c ON cp.course_id = c.id
-      ORDER BY cp.purchase_date DESC
+      ORDER BY cp.created_at DESC
     `);
     res.json({ success: true, purchases });
   } catch (err) {

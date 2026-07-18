@@ -1,3 +1,0 @@
-# Wrangler configuration for Cloudflare Pages deployment
-name = "shop-application"
-pages_build_output_dir = "client/dist"

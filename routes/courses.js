@@ -8,11 +8,11 @@ router.get('/', async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT id,
-              course_name AS title,
-              course_code AS slug,
+              title,
+              '' AS slug,
               description,
               price,
-              duration AS duration_days,
+              30 AS duration_days,
               status = 'active' AS published
        FROM courses
        WHERE status = 'active'
@@ -52,8 +52,8 @@ router.post('/', async (req, res) => {
     const finalPrice = is_free ? 0 : price;
     const duration = duration_days ? String(duration_days) : '';
     const [result] = await pool.query(
-      'INSERT INTO courses (course_name, course_code, description, price, duration, status, created_by) VALUES (?,?,?,?,?,?,?)',
-      [title, slug, description || '', finalPrice, duration, status, req.user.id]
+      'INSERT INTO courses (title, description, price, status) VALUES (?,?,?,?)',
+      [title, description || '', finalPrice, status]
     );
     res.status(201).json({ success: true, message: 'Course created', courseId: result.insertId });
   } catch (err) {
@@ -69,8 +69,8 @@ router.put('/:id', async (req, res) => {
     const finalPrice = is_free ? 0 : price;
     const duration = duration_days ? String(duration_days) : '';
     await pool.query(
-      'UPDATE courses SET course_name=?, course_code=?, description=?, price=?, duration=?, status=? WHERE id=?',
-      [title, req.body.slug || '', description || '', finalPrice, duration, status, req.params.id]
+      'UPDATE courses SET title=?, description=?, price=?, status=? WHERE id=?',
+      [title, description || '', finalPrice, status, req.params.id]
     );
     res.json({ success: true, message: 'Course updated' });
   } catch (err) {

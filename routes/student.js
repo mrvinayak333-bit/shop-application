@@ -29,10 +29,10 @@ router.get('/dashboard', async (req, res) => {
       `SELECT
           ce.id AS enrollment_id,
           c.id AS course_id,
-          c.course_name,
-          c.course_code,
+          c.title AS course_name,
+          '' AS course_code,
           c.description,
-          c.duration,
+          '30 Days' AS duration,
           c.price,
           COALESCE(img.course_thumbnail, NULL) AS thumbnail,
           COALESCE(mu.name, 'Instructor') AS instructor_name,

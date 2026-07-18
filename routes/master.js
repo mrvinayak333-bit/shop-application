@@ -136,12 +136,12 @@ router.post('/students', async (req, res) => {
       const tokens = normalizedCourse.split(/\s+/).filter(word => word.length > 2);
       let query = `SELECT id FROM courses
                    WHERE status = 'active' AND (
-                     course_name = ? OR course_code = ?`;
-      const params = [course, course];
+                     title = ?`;
+      const params = [course];
 
       for (const token of tokens) {
-        query += ' OR LOWER(course_name) LIKE ? OR LOWER(course_code) LIKE ?';
-        params.push(`%${token}%`, `%${token}%`);
+        query += ' OR LOWER(title) LIKE ?';
+        params.push(`%${token}%`);
       }
 
       query += ') LIMIT 1';

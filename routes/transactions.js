@@ -12,7 +12,7 @@ router.get('/student/available', authenticateToken, authorize('student'), async 
   try {
     const studentId = req.user.id;
     const [courses] = await pool.query(`
-      SELECT c.id, c.course_name as title, c.description, c.price, c.duration,
+      SELECT c.id, c.title, c.description, c.price, '30 Days' AS duration,
              CASE WHEN cp.id IS NOT NULL THEN 1 ELSE 0 END as already_purchased
       FROM courses c
       LEFT JOIN course_purchases cp ON c.id = cp.course_id AND cp.student_id = ?
@@ -31,7 +31,7 @@ router.get('/student/purchased', authenticateToken, authorize('student'), async 
   try {
     const studentId = req.user.id;
     const [courses] = await pool.query(`
-      SELECT c.id, c.course_name as title, c.description, c.price, c.duration,
+      SELECT c.id, c.title, c.description, c.price, '30 Days' AS duration,
              cp.created_at AS purchase_date, cp.id as purchase_id,
              (SELECT COUNT(*) FROM course_materials WHERE course_id = c.id) as material_count
       FROM course_purchases cp
@@ -273,7 +273,7 @@ router.get('/admin/all-purchases', authenticateToken, authorize('admin', 'master
     const [purchases] = await pool.query(`
       SELECT cp.id, cp.student_id, cp.course_id, cp.amount_paid, cp.payment_method, cp.status, cp.created_at AS purchase_date,
              s.name as student_name, s.student_id, s.email as student_email,
-             c.course_name, c.price
+             c.title as course_name, c.price
       FROM course_purchases cp
       JOIN students s ON cp.student_id = s.id
       JOIN courses c ON cp.course_id = c.id
@@ -292,7 +292,7 @@ router.get('/all-purchases', authenticateToken, authorize('admin', 'master'), as
     const [purchases] = await pool.query(`
       SELECT cp.id, cp.student_id, cp.course_id, cp.amount_paid, cp.payment_method, cp.status, cp.created_at AS purchase_date,
              s.name as student_name, s.student_id, s.email as student_email,
-             c.course_name, c.price
+             c.title as course_name, c.price
       FROM course_purchases cp
       JOIN students s ON cp.student_id = s.id
       JOIN courses c ON cp.course_id = c.id
@@ -374,7 +374,7 @@ router.get('/transactions/all-purchases', authenticateToken, authorize('admin', 
     const [purchases] = await pool.query(`
       SELECT cp.id, cp.student_id, cp.course_id, cp.amount_paid, cp.payment_method, cp.status, cp.created_at AS purchase_date,
              s.name as student_name, s.student_id, s.email as student_email,
-             c.course_name, c.price
+             c.title as course_name, c.price
       FROM course_purchases cp
       JOIN students s ON cp.student_id = s.id
       JOIN courses c ON cp.course_id = c.id

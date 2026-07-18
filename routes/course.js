@@ -11,10 +11,10 @@ router.get('/public', async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT id,
-              course_name AS title,
-              course_code AS slug,
+              title,
+              '' AS slug,
               description,
-              duration AS duration_days,
+              30 AS duration_days,
               price,
               status = 'active' AS published
        FROM courses
@@ -37,10 +37,10 @@ router.get('/manage', async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT c.id,
-              c.course_name AS title,
-              c.course_code AS slug,
+              c.title,
+              '' AS slug,
               c.description,
-              c.duration AS duration_days,
+              30 AS duration_days,
               c.price,
               c.status = 'active' AS published,
               c.status,
@@ -62,8 +62,8 @@ router.post('/manage', async (req, res) => {
     if (!course_name) return res.status(400).json({ success: false, message: 'Course name is required' });
 
     const [result] = await pool.query(
-      'INSERT INTO courses (course_name, course_code, description, duration, price, created_by) VALUES (?, ?, ?, ?, ?, ?)',
-      [course_name, course_code, description, duration, price, req.user.id]
+      'INSERT INTO courses (title, description, price, status) VALUES (?, ?, ?, "active")',
+      [course_name, description || '', price || 0]
     );
     res.status(201).json({ success: true, message: 'Course created', courseId: result.insertId });
   } catch (err) {
@@ -77,8 +77,8 @@ router.put('/manage/:id', async (req, res) => {
     const { course_name, course_code, description, duration, price, status } = req.body;
     const finalStatus = status === 'active' ? 'active' : 'inactive';
     await pool.query(
-      'UPDATE courses SET course_name=?, course_code=?, description=?, duration=?, price=?, status=? WHERE id=?',
-      [course_name, course_code, description, duration, price, finalStatus, req.params.id]
+      'UPDATE courses SET title=?, description=?, price=?, status=? WHERE id=?',
+      [course_name, description || '', price || 0, finalStatus, req.params.id]
     );
     res.json({ success: true, message: 'Course updated' });
   } catch (err) {

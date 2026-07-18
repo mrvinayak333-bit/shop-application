@@ -36,6 +36,10 @@ export default defineConfig({
     watch: {
       // Ignore Android native build output to avoid EBUSY file-lock errors
       ignored: ['android/**', '**/android/**/build/**']
+    },
+    proxy: {
+      '/api': 'http://localhost:5000',
+      '/uploads': 'http://localhost:5000'
     }
   }
 });

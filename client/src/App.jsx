@@ -19,9 +19,7 @@ import StudentDashboard from './pages/StudentDashboard';
 import CoursesPage from './pages/CoursePurchasePage';
 import StaffLogin from './pages/StaffLogin';
 import EnrolledCourses from './pages/EnrolledCourses';
-import api from './lib/api';
-import PrintCertificate from './pages/PrintCertificate';
-import ResetPassword from './pages/ResetPassword';
+
 function App() {
   return (
     <AuthProvider>
@@ -47,9 +45,7 @@ function App() {
           <Route path="/technician/repair/:id/pickup" element={<PickupVerification />} />
           <Route path="/technician/repair/:id/payment" element={<PaymentPage />} />
           <Route path="/repair/:id/payment" element={<PaymentPage />} />
-           <Route path="/student/certificates/:id/html" element={<PrintCertificate />} />
-           <Route path="/reset-password" element={<ResetPassword />} />
-         </Routes>
+        </Routes>
         </BrowserRouter>
       </NotificationProvider>
     </AuthProvider>

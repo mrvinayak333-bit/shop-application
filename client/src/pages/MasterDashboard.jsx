@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Wrench, Clock, DollarSign, BookOpen, Briefcase, TrendingUp, Plus, Edit, Trash2, Lock, Unlock, Key, Eye, EyeOff, Search, Shield, UserCheck, Activity, Settings, ChevronRight, X, RefreshCw, Download, CreditCard, Image, Globe, FileText, Calendar, Smartphone } from 'lucide-react';
+import { Users, Wrench, Clock, DollarSign, BookOpen, Briefcase, TrendingUp, Plus, Edit, Trash2, Lock, Unlock, Key, Eye, EyeOff, Search, Shield, UserCheck, Activity, Settings, ChevronRight, X, RefreshCw, Download, CreditCard, Image, Globe, FileText, Calendar } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import api from '../lib/api';
 import Navbar from '../components/Navbar';
@@ -8,21 +8,6 @@ import StatusBadge from '../components/StatusBadge';
 import Loading from '../components/Loading';
 import ToastContainer, { showToast } from '../components/Toast';
 import RepairingCoursePurchase from '../components/RepairingCoursePurchase';
-import CourseManager from '../components/CourseManager';
-import DeviceConfigManager from '../components/DeviceConfigManager';
-import MasterSettingsCenter from '../components/MasterSettingsCenter';
-
-const calculateAge = (dobString) => {
-  if (!dobString) return '';
-  const birthDate = new Date(dobString);
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const m = today.getMonth() - birthDate.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-    age--;
-  }
-  return age >= 0 ? age : '';
-};
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: TrendingUp },
@@ -35,7 +20,6 @@ const TABS = [
   { id: 'reports', label: 'Reports', icon: FileText },
   { id: 'payments', label: 'Payment Methods', icon: CreditCard },
   { id: 'website', label: 'Website Settings', icon: Globe },
-  { id: 'device-config', label: 'Device Categories', icon: Smartphone },
   { id: 'activity', label: 'Activity Logs', icon: Activity },
 ];
 
@@ -760,7 +744,50 @@ export default function MasterDashboard() {
 
         {/* COURSES TAB */}
         {activeTab === 'courses' && (
-          <CourseManager />
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search courses..." className="input pl-9 py-2 text-sm" />
+              </div>
+              <button onClick={() => openCreateModal('course')} className="btn-primary flex items-center gap-2 text-sm"><Plus className="w-4 h-4" /> Create Course</button>
+            </div>
+            <div className="card overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b">
+                  <th className="text-left py-2 px-2">ID</th>
+                  <th className="text-left py-2 px-2">Title</th>
+                  <th className="text-left py-2 px-2">Price</th>
+                  <th className="text-left py-2 px-2">Free</th>
+                  <th className="text-left py-2 px-2">Days</th>
+                  <th className="text-left py-2 px-2">Published</th>
+                  <th className="text-left py-2 px-2">Actions</th>
+                </tr></thead>
+                <tbody>
+                  {courses.filter(c => c.title?.toLowerCase().includes(searchTerm.toLowerCase()) || String(c.id) === searchTerm).map(c => (
+                    <tr key={c.id} className="border-b hover:bg-gray-50">
+                      <td className="py-2 px-2 font-mono text-xs">{c.id}</td>
+                      <td className="py-2 px-2 font-medium">{c.title}</td>
+                      <td className="py-2 px-2">{c.is_free ? 'Free' : `₹${parseFloat(c.price||0).toFixed(2)}`}</td>
+                      <td className="py-2 px-2">{c.is_free ? 'Yes' : 'No'}</td>
+                      <td className="py-2 px-2">{c.duration_days || 0}</td>
+                      <td className="py-2 px-2">{c.published ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">Published</span> : <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">Draft</span>}</td>
+                      <td className="py-2 px-2">
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => openEditModal('course', c)} className="p-1.5 hover:bg-blue-50 rounded text-blue-600" title="Edit"><Edit className="w-4 h-4" /></button>
+                          <button onClick={() => handleTogglePublished(c)} className="p-1.5 hover:bg-emerald-50 rounded text-emerald-600" title={c.published ? 'Unpublish' : 'Publish'}>
+                            {c.published ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                          <button onClick={() => handleDeleteCourse(c.id)} className="p-1.5 hover:bg-red-50 rounded text-red-600" title="Delete"><Trash2 className="w-4 h-4" /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {courses.length === 0 && <p className="text-center text-gray-400 py-8">No courses found</p>}
+            </div>
+          </div>
         )}
 
         {/* REPAIRING COURSE PURCHASE TAB */}
@@ -918,7 +945,79 @@ export default function MasterDashboard() {
 
         {/* WEBSITE SETTINGS TAB */}
         {activeTab === 'website' && (
-          <MasterSettingsCenter />
+          <div className="space-y-6">
+            <div className="card">
+              <h2 className="text-lg font-semibold mb-4">General Website Settings</h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Company Name</label>
+                  <input value={websiteSettings.company_name || ''} onChange={e => handleSaveWebsiteSetting('company_name', e.target.value)} className="input" placeholder="SHREE RAAM MOBILE" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Contact Phone</label>
+                  <input value={websiteSettings.contact_phone || ''} onChange={e => handleSaveWebsiteSetting('contact_phone', e.target.value)} className="input" placeholder="+91 95522 10333" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Contact Email</label>
+                  <input value={websiteSettings.contact_email || ''} onChange={e => handleSaveWebsiteSetting('contact_email', e.target.value)} className="input" placeholder="info@shreeraammobile.com" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Address</label>
+                  <textarea value={websiteSettings.address || ''} onChange={e => handleSaveWebsiteSetting('address', e.target.value)} className="input" rows="2" placeholder="Solapur, Maharashtra" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">WhatsApp Number</label>
+                  <input value={websiteSettings.whatsapp || ''} onChange={e => handleSaveWebsiteSetting('whatsapp', e.target.value)} className="input" placeholder="919552210333" />
+                </div>
+              </div>
+            </div>
+
+            <div className="card">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold">Gallery Photos</h2>
+                <label className="btn-primary flex items-center gap-2 text-sm cursor-pointer">
+                  <Plus className="w-4 h-4" /> Upload Photo
+                  <input type="file" accept="image/*" onChange={e => { const fd = new FormData(); fd.append('photo', e.target.files[0]); fd.append('title', 'Gallery Photo'); handleUploadGalleryPhoto(fd); }} className="hidden" />
+                </label>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {galleryPhotos.map((photo, i) => (
+                  <div key={i} className="relative group">
+                    <img src={photo.photo_path} alt={photo.title} className="w-full h-32 object-cover rounded-lg" />
+                    <button onClick={() => handleDeleteGalleryPhoto(photo.id)} className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {galleryPhotos.length === 0 && <p className="text-center text-gray-400 py-8">No gallery photos</p>}
+            </div>
+
+            <div className="card">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold">Slider Images</h2>
+                <label className="btn-primary flex items-center gap-2 text-sm cursor-pointer">
+                  <Plus className="w-4 h-4" /> Upload Slider
+                  <input type="file" accept="image/*" onChange={e => { const fd = new FormData(); fd.append('image', e.target.files[0]); fd.append('title', 'Slider Image'); fd.append('display_order', sliders.length); handleUploadSlider(fd); }} className="hidden" />
+                </label>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {sliders.map((slider, i) => (
+                  <div key={i} className="relative group">
+                    <img src={slider.image_path} alt={slider.title} className="w-full h-48 object-cover rounded-lg" />
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white p-2 rounded-b-lg">
+                      <p className="text-sm font-medium">{slider.title}</p>
+                      <p className="text-xs">{slider.subtitle}</p>
+                    </div>
+                    <button onClick={() => handleDeleteSlider(slider.id)} className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {sliders.length === 0 && <p className="text-center text-gray-400 py-8">No slider images</p>}
+            </div>
+          </div>
         )}
 
         {/* ACTIVITY LOGS TAB */}
@@ -949,11 +1048,6 @@ export default function MasterDashboard() {
               {activityLogs.length === 0 && <p className="text-center text-gray-400 py-8">No activity logs</p>}
             </div>
           </div>
-        )}
-
-        {/* DEVICE CATEGORIES CONFIG TAB */}
-        {activeTab === 'device-config' && (
-          <DeviceConfigManager />
         )}
       </main>
 
@@ -1120,17 +1214,9 @@ function TechnicianForm({ editItem, onSave, onCancel }) {
 
 // STUDENT FORM
 function StudentForm({ editItem, onSave, onCancel }) {
-  const [form, setForm] = useState(() => {
-    const defaultVals = {
-      student_id: generateStaffId('SRMS', Math.floor(Math.random() * 9000) + 1000),
-      name: '', password: '', email: '', mobile: '', course: '', batch: '', status: 'active',
-      fathers_name: '', address: '', age: '', dob: '', aadhaar_number: '', gender: ''
-    };
-    if (editItem) {
-      const formattedDob = editItem.dob ? editItem.dob.substring(0, 10) : '';
-      return { ...defaultVals, ...editItem, dob: formattedDob, password: '' };
-    }
-    return { ...defaultVals, password: generatePassword() };
+  const [form, setForm] = useState(editItem || {
+    student_id: generateStaffId('SRMS', Math.floor(Math.random() * 9000) + 1000),
+    name: '', password: generatePassword(), email: '', mobile: '', course: '', batch: '', status: 'active'
   });
   const [showPass, setShowPass] = useState(false);
 
@@ -1142,7 +1228,7 @@ function StudentForm({ editItem, onSave, onCancel }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 max-h-[80vh] overflow-y-auto pr-1">
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div><label className="block text-sm font-medium mb-1">Student ID *</label>
         <input value={form.student_id} onChange={e => setForm({...form, student_id: e.target.value})} className="input font-mono" required disabled={!!editItem} />
         {!editItem && <p className="text-xs text-gray-500 mt-1">Auto-generated: {form.student_id}</p>}
@@ -1171,40 +1257,6 @@ function StudentForm({ editItem, onSave, onCancel }) {
         <div><label className="block text-sm font-medium mb-1">Batch</label>
           <input value={form.batch} onChange={e => setForm({...form, batch: e.target.value})} className="input" placeholder="e.g. 2026" /></div>
       </div>
-      
-      {/* EXTENDED DETAILS FIELDS */}
-      <div className="grid grid-cols-2 gap-4 border-t pt-3">
-        <div><label className="block text-xs font-bold text-gray-600 mb-1">Father's Name</label>
-          <input value={form.fathers_name || ''} onChange={e => setForm({...form, fathers_name: e.target.value})} className="input" /></div>
-        <div><label className="block text-xs font-bold text-gray-600 mb-1">Aadhaar Card Number</label>
-          <input value={form.aadhaar_number || ''} onChange={e => setForm({...form, aadhaar_number: e.target.value})} className="input" placeholder="12-digit Aadhaar" /></div>
-      </div>
-      <div className="grid grid-cols-3 gap-4">
-        <div><label className="block text-xs font-bold text-gray-600 mb-1">Gender</label>
-          <select value={form.gender || ''} onChange={e => setForm({...form, gender: e.target.value})} className="input text-xs">
-            <option value="">Select</option>
-            <option value="male">Male</option>
-            <option value="female">Female</option>
-            <option value="other">Other</option>
-          </select></div>
-        <div><label className="block text-xs font-bold text-gray-600 mb-1">Age</label>
-          <input type="number" value={form.age || ''} onChange={e => setForm({...form, age: e.target.value})} className="input" /></div>
-        <div><label className="block text-xs font-bold text-gray-600 mb-1">Date of Birth</label>
-          <input 
-            type="date" 
-            value={form.dob || ''} 
-            onChange={e => {
-              const dobVal = e.target.value;
-              const calculatedAge = calculateAge(dobVal);
-              setForm({ ...form, dob: dobVal, age: calculatedAge });
-            }} 
-            className="input" 
-          />
-        </div>
-      </div>
-      <div><label className="block text-xs font-bold text-gray-600 mb-1">Full Address</label>
-        <textarea value={form.address || ''} onChange={e => setForm({...form, address: e.target.value})} className="input" rows="2" /></div>
-      
       {editItem && <div><label className="block text-sm font-medium mb-1">Status</label>
         <select value={form.status} onChange={e => setForm({...form, status: e.target.value})} className="input">
           <option value="active">Active</option><option value="inactive">Inactive</option>

@@ -1,21 +1,19 @@
 const http = require('http');
+const https = require('https');
 
 // Test configuration
 const API_BASE = 'http://localhost:5000/api';
+const TESTS = [];
 
-function testAPI(name, method, path, body = null, token = null) {
+function testAPI(name, method, path, body = null) {
   return new Promise((resolve) => {
     const url = new URL(API_BASE + path);
-    const headers = { 'Content-Type': 'application/json' };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
     const options = {
       hostname: url.hostname,
       port: url.port,
       path: url.pathname + url.search,
       method: method,
-      headers: headers,
+      headers: { 'Content-Type': 'application/json' },
       timeout: 5000
     };
 
@@ -41,11 +39,6 @@ function testAPI(name, method, path, body = null, token = null) {
       resolve({ name, success: false, error: err.message });
     });
 
-    req.on('timeout', () => {
-      req.destroy();
-      resolve({ name, success: false, error: 'Timeout' });
-    });
-
     if (body) req.write(JSON.stringify(body));
     req.end();
   });
@@ -58,27 +51,20 @@ async function runTests() {
   // Test 1: Health Check
   console.log('\n📋 Test 1: API Health & Configuration');
   let result = await testAPI('GET /auth/profile', 'GET', '/auth/profile');
-  console.log(`${result.status === 401 || result.success ? '✓' : '✗'} API Server Responding: ${result.status}`);
+  console.log(`${result.success ? '✓' : '✗'} API Server Responding: ${result.status}`);
 
   // Test 2: Database Connection
   console.log('\n📋 Test 2: Database Connectivity');
-  console.log('✓ Database Connected');
+  result = await testAPI('Check DB Connection', 'GET', '/auth/profile');
+  console.log(`${result.success || result.error?.includes('Unauthorized') ? '✓' : '✗'} Database Connected`);
 
-  // Test 3: Authentication System
+  // Test 3: Login Endpoint
   console.log('\n📋 Test 3: Authentication System');
   
-  // Master Login
-  result = await testAPI('Master Login', 'POST', '/auth/login', {
-    email: 'mr.vinayak333@gmail.com',
-    password: 'VINAYAK@333',
-    role: 'master'
-  });
-  console.log(`${result.success ? '✓' : '✗'} Master Login: ${result.status}`);
-
   // Admin Login
   result = await testAPI('Admin Login', 'POST', '/auth/login', {
-    email: 'admin@repairsystem.com',
-    password: 'master123',
+    email: 'admin@shop.com',
+    password: 'admin123',
     role: 'admin'
   });
   const adminToken = result.result?.token;
@@ -86,10 +72,9 @@ async function runTests() {
 
   // Student Login
   result = await testAPI('Student Login', 'POST', '/auth/login', {
-    studentId: 'SRMS-2026-4364',
+    mobileOrStudentId: 'SRMS-2026-4364',
     password: 'student123',
-    role: 'student',
-    deviceId: 'TEST-DEVICE-ID-123'
+    role: 'student'
   });
   const studentToken = result.result?.token;
   console.log(`${result.success ? '✓' : '✗'} Student Login: ${result.status}`);
@@ -100,7 +85,6 @@ async function runTests() {
     password: 'tech123',
     role: 'technician'
   });
-  const techToken = result.result?.token;
   console.log(`${result.success ? '✓' : '✗'} Technician Login: ${result.status}`);
 
   // Customer Login
@@ -109,31 +93,30 @@ async function runTests() {
     password: 'customer123',
     role: 'customer'
   });
-  const customerToken = result.result?.token;
   console.log(`${result.success ? '✓' : '✗'} Customer Login: ${result.status}`);
 
   // Test 4: Course Purchase System
   console.log('\n📋 Test 4: Course Purchase System');
   
-  result = await testAPI('Browse Available Courses', 'GET', '/transactions/student/available', null, studentToken);
+  result = await testAPI('Browse Available Courses', 'GET', '/transactions/student/available');
   console.log(`${result.success ? '✓' : '✗'} Browse Courses: ${result.status} (${result.result?.courses?.length || 0} found)`);
 
-  result = await testAPI('View Purchased Courses', 'GET', '/transactions/student/purchased', null, studentToken);
+  result = await testAPI('View Purchased Courses', 'GET', '/transactions/student/purchased');
   console.log(`${result.success ? '✓' : '✗'} Purchased Courses: ${result.status}`);
 
   // Test 5: Commission System
   console.log('\n📋 Test 5: Commission Management System');
   
-  result = await testAPI('Commission Dashboard', 'GET', '/transactions/commission/dashboard', null, techToken);
-  console.log(`${result.success ? '✓' : '✗'} Commission Dashboard (Tech): ${result.status}`);
+  result = await testAPI('Commission Dashboard', 'GET', '/transactions/commission/dashboard');
+  console.log(`${result.success ? '✓' : '✗'} Commission Dashboard: ${result.status}`);
 
-  result = await testAPI('Commission Summary', 'GET', '/transactions/commission/summary', null, adminToken);
-  console.log(`${result.success ? '✓' : '✗'} Commission Summary (Admin): ${result.status}`);
+  result = await testAPI('Commission Summary', 'GET', '/transactions/commission/summary');
+  console.log(`${result.success ? '✓' : '✗'} Commission Summary: ${result.status}`);
 
   // Test 6: Laptop Repair System
   console.log('\n📋 Test 6: Laptop/Computer Repair Module');
   
-  result = await testAPI('Get Pending Laptop Repairs (Admin)', 'GET', '/laptop-repair/admin/pending-verification', null, adminToken);
+  result = await testAPI('Get Pending Laptop Repairs (Admin)', 'GET', '/api/laptop-repair/admin/pending-verification');
   console.log(`${result.success ? '✓' : '✗'} Admin Repairs List: ${result.status}`);
 
   result = await testAPI('Track Repair Status', 'GET', '/laptop-repair/track/LR-TEST-001');

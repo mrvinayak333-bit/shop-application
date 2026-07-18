@@ -12,11 +12,11 @@ router.get('/student/available', authenticateToken, authorize('student'), async 
   try {
     const studentId = req.user.id;
     const [courses] = await pool.query(`
-      SELECT c.id, c.title as title, c.description, c.price, 0 as duration,
+      SELECT c.id, c.course_name as title, c.description, c.price, c.duration,
              CASE WHEN cp.id IS NOT NULL THEN 1 ELSE 0 END as already_purchased
       FROM courses c
       LEFT JOIN course_purchases cp ON c.id = cp.course_id AND cp.student_id = ?
-      WHERE c.status = 'active'
+      WHERE c.status = 'active' AND c.price > 0
       ORDER BY c.created_at DESC
     `, [studentId]);
     res.json({ success: true, courses });
@@ -31,13 +31,13 @@ router.get('/student/purchased', authenticateToken, authorize('student'), async 
   try {
     const studentId = req.user.id;
     const [courses] = await pool.query(`
-      SELECT c.id, c.title as title, c.description, c.price, 0 as duration,
-             cp.created_at as purchase_date, cp.id as purchase_id,
-             (SELECT COUNT(*) FROM course_subjects WHERE course_id = c.id) as material_count
+      SELECT c.id, c.course_name as title, c.description, c.price, c.duration,
+             cp.purchase_date, cp.id as purchase_id,
+             (SELECT COUNT(*) FROM course_materials WHERE course_id = c.id) as material_count
       FROM course_purchases cp
       JOIN courses c ON cp.course_id = c.id
       WHERE cp.student_id = ? AND cp.status = 'completed'
-      ORDER BY cp.created_at DESC
+      ORDER BY cp.purchase_date DESC
     `, [studentId]);
     res.json({ success: true, courses });
   } catch (err) {
@@ -60,10 +60,10 @@ router.get('/student/course/:courseId/materials', authenticateToken, authorize('
     if (!purchased.length) return res.status(403).json({ success: false, message: 'Not purchased' });
     
     const [materials] = await pool.query(`
-      SELECT id, type as material_type, title, '' as description, file_path, 0 as duration_minutes, display_order as sort_order
-      FROM course_subject_items
-      WHERE subject_id IN (SELECT id FROM course_subjects WHERE course_id = ?)
-      ORDER BY display_order ASC, created_at ASC
+      SELECT id, material_type, title, description, file_path, duration_minutes, sort_order
+      FROM course_materials
+      WHERE course_id = ?
+      ORDER BY sort_order ASC, created_at ASC
     `, [courseId]);
     res.json({ success: true, materials });
   } catch (err) {
@@ -95,12 +95,6 @@ router.post('/purchase', authenticateToken, authorize('student'), async (req, re
       [studentId, courseId, course[0].price, 'online', 'completed']
     );
     
-    // Also create enrollment record
-    await pool.query(
-      'INSERT IGNORE INTO course_enrollments (student_id, course_id, payment_status, transaction_id) VALUES (?, ?, ?, ?)',
-      [studentId, courseId, 'completed', result.insertId]
-    );
-
     res.status(201).json({ success: true, message: 'Course purchased successfully', purchaseId: result.insertId });
   } catch (err) {
     console.error(err);
@@ -121,11 +115,11 @@ router.get('/commission/dashboard', authenticateToken, authorize('admin', 'techn
     // Get summary
     const [[summary]] = await pool.query(`
       SELECT 
-        COALESCE(SUM(CASE WHEN cl.status = 'pending' THEN cl.commission_amount ELSE 0 END), 0) as pending,
-        COALESCE(SUM(CASE WHEN cl.status = 'approved' THEN cl.commission_amount ELSE 0 END), 0) as approved,
-        COALESCE(SUM(CASE WHEN cl.status = 'paid' THEN cl.commission_amount ELSE 0 END), 0) as paid,
-        COALESCE(SUM(cl.commission_amount), 0) as total
-      FROM commission_ledger cl
+        COALESCE(SUM(CASE WHEN status = 'pending' THEN commission_amount ELSE 0 END), 0) as pending,
+        COALESCE(SUM(CASE WHEN status = 'approved' THEN commission_amount ELSE 0 END), 0) as approved,
+        COALESCE(SUM(CASE WHEN status = 'paid' THEN commission_amount ELSE 0 END), 0) as paid,
+        COALESCE(SUM(commission_amount), 0) as total
+      FROM commission_ledger
       WHERE user_id = ? AND user_role = ?
     `, [userId, userRole]);
     
@@ -169,17 +163,17 @@ router.get('/commission/summary', authenticateToken, authorize('admin', 'master'
   try {
     const [summary] = await pool.query(`
       SELECT 
-        cl.user_id, cl.user_role,
-        CASE WHEN cl.user_role = 'admin' THEN a.name ELSE t.name END as user_name,
+        user_id, user_role,
+        CASE WHEN user_role = 'admin' THEN a.name ELSE t.name END as user_name,
         COUNT(*) as total_transactions,
-        COALESCE(SUM(CASE WHEN cl.status = 'pending' THEN cl.commission_amount ELSE 0 END), 0) as pending_amount,
-        COALESCE(SUM(CASE WHEN cl.status = 'paid' THEN cl.commission_amount ELSE 0 END), 0) as paid_amount,
-        COALESCE(SUM(cl.commission_amount), 0) as total_amount,
-        MAX(cl.payment_date) as last_payment_date
+        COALESCE(SUM(CASE WHEN status = 'pending' THEN commission_amount ELSE 0 END), 0) as pending_amount,
+        COALESCE(SUM(CASE WHEN status = 'paid' THEN commission_amount ELSE 0 END), 0) as paid_amount,
+        COALESCE(SUM(commission_amount), 0) as total_amount,
+        MAX(payment_date) as last_payment_date
       FROM commission_ledger cl
       LEFT JOIN admins a ON cl.user_id = a.id AND cl.user_role = 'admin'
       LEFT JOIN technicians t ON cl.user_id = t.id AND cl.user_role = 'technician'
-      GROUP BY cl.user_id, cl.user_role
+      GROUP BY user_id, user_role
       ORDER BY total_amount DESC
     `);
     res.json({ success: true, summary });
@@ -262,7 +256,7 @@ router.put('/commission-settings/:id', authenticateToken, authorize('admin', 'ma
 router.get('/admin/students', authenticateToken, authorize('admin', 'master'), async (req, res) => {
   try {
     const [students] = await pool.query(`
-      SELECT id, student_id, name, email, mobile, course AS class, status, created_at
+      SELECT id, student_id, name, email, mobile, class, status, created_at
       FROM students
       ORDER BY name ASC
     `);
@@ -277,13 +271,13 @@ router.get('/admin/students', authenticateToken, authorize('admin', 'master'), a
 router.get('/admin/all-purchases', authenticateToken, authorize('admin', 'master'), async (req, res) => {
   try {
     const [purchases] = await pool.query(`
-      SELECT cp.id, cp.student_id, cp.course_id, cp.amount_paid, cp.payment_method, cp.status, cp.created_at AS purchase_date,
+      SELECT cp.id, cp.student_id, cp.course_id, cp.amount_paid, cp.payment_method, cp.status, cp.purchase_date,
              s.name as student_name, s.student_id, s.email as student_email,
-             c.title AS course_name, c.price
+             c.course_name, c.price
       FROM course_purchases cp
       JOIN students s ON cp.student_id = s.id
       JOIN courses c ON cp.course_id = c.id
-      ORDER BY cp.created_at DESC
+      ORDER BY cp.purchase_date DESC
     `);
     res.json({ success: true, purchases });
   } catch (err) {
@@ -296,13 +290,13 @@ router.get('/admin/all-purchases', authenticateToken, authorize('admin', 'master
 router.get('/all-purchases', authenticateToken, authorize('admin', 'master'), async (req, res) => {
   try {
     const [purchases] = await pool.query(`
-      SELECT cp.id, cp.student_id, cp.course_id, cp.amount_paid, cp.payment_method, cp.status, cp.created_at AS purchase_date,
+      SELECT cp.id, cp.student_id, cp.course_id, cp.amount_paid, cp.payment_method, cp.status, cp.purchase_date,
              s.name as student_name, s.student_id, s.email as student_email,
-             c.title AS course_name, c.price
+             c.course_name, c.price
       FROM course_purchases cp
       JOIN students s ON cp.student_id = s.id
       JOIN courses c ON cp.course_id = c.id
-      ORDER BY cp.created_at DESC
+      ORDER BY cp.purchase_date DESC
     `);
     res.json({ success: true, purchases });
   } catch (err) {
@@ -314,8 +308,7 @@ router.get('/all-purchases', authenticateToken, authorize('admin', 'master'), as
 // ADMIN: Create course purchase for a student
 router.post('/admin/purchase-course', authenticateToken, authorize('admin', 'master'), async (req, res) => {
   try {
-    const { student_id, course_id, amount_paid, payment_method, status } = req.body;
-    const finalStatus = status || 'completed';
+    const { student_id, course_id, amount_paid, payment_method } = req.body;
 
     if (!student_id || !course_id || !amount_paid) {
       return res.status(400).json({ success: false, message: 'Missing required fields' });
@@ -345,16 +338,8 @@ router.post('/admin/purchase-course', authenticateToken, authorize('admin', 'mas
     // Create purchase record
     const [result] = await pool.query(
       'INSERT INTO course_purchases (student_id, course_id, amount_paid, payment_method, status) VALUES (?,?,?,?,?)',
-      [student_id, course_id, amount_paid, payment_method || 'manual', finalStatus]
+      [student_id, course_id, amount_paid, payment_method || 'manual', 'completed']
     );
-
-    // Also enroll student if purchase is completed
-    if (finalStatus === 'completed') {
-      await pool.query(
-        'INSERT IGNORE INTO course_enrollments (student_id, course_id, payment_status, transaction_id) VALUES (?, ?, ?, ?)',
-        [student_id, course_id, 'completed', result.insertId]
-      );
-    }
 
     res.status(201).json({
       success: true,
@@ -367,58 +352,16 @@ router.post('/admin/purchase-course', authenticateToken, authorize('admin', 'mas
   }
 });
 
-// ADMIN: Update course purchase (edit payment details/status)
-router.put('/admin/purchase/:id', authenticateToken, authorize('admin', 'master'), async (req, res) => {
-  try {
-    const { amount_paid, payment_method, status } = req.body;
-    
-    // Get original purchase record
-    const [[purchase]] = await pool.query('SELECT student_id, course_id FROM course_purchases WHERE id = ?', [req.params.id]);
-    if (!purchase) {
-      return res.status(404).json({ success: false, message: 'Purchase not found' });
-    }
-
-    const [result] = await pool.query(
-      'UPDATE course_purchases SET amount_paid = ?, payment_method = ?, status = ? WHERE id = ?',
-      [amount_paid, payment_method, status, req.params.id]
-    );
-
-    // Update enrollment status based on purchase status
-    if (status === 'completed') {
-      await pool.query(
-        'INSERT IGNORE INTO course_enrollments (student_id, course_id, payment_status, transaction_id) VALUES (?, ?, ?, ?)',
-        [purchase.student_id, purchase.course_id, 'completed', req.params.id]
-      );
-    } else {
-      await pool.query(
-        'DELETE FROM course_enrollments WHERE student_id = ? AND course_id = ?',
-        [purchase.student_id, purchase.course_id]
-      );
-    }
-
-    res.json({ success: true, message: 'Purchase updated successfully' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-});
-
 // ADMIN: Delete course purchase
 router.delete('/admin/purchase/:id', authenticateToken, authorize('admin', 'master'), async (req, res) => {
   try {
-    // Get purchase details first
-    const [[purchase]] = await pool.query('SELECT student_id, course_id FROM course_purchases WHERE id = ?', [req.params.id]);
-    if (!purchase) {
+    const [result] = await pool.query('DELETE FROM course_purchases WHERE id = ?', [req.params.id]);
+
+    if (result.affectedRows === 0) {
       return res.status(404).json({ success: false, message: 'Purchase not found' });
     }
 
-    // Delete purchase
-    const [result] = await pool.query('DELETE FROM course_purchases WHERE id = ?', [req.params.id]);
-
-    // Also delete corresponding enrollment
-    await pool.query('DELETE FROM course_enrollments WHERE student_id = ? AND course_id = ?', [purchase.student_id, purchase.course_id]);
-
-    res.json({ success: true, message: 'Purchase and enrollment deleted successfully' });
+    res.json({ success: true, message: 'Purchase deleted successfully' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error' });
@@ -429,13 +372,13 @@ router.delete('/admin/purchase/:id', authenticateToken, authorize('admin', 'mast
 router.get('/transactions/all-purchases', authenticateToken, authorize('admin', 'master'), async (req, res) => {
   try {
     const [purchases] = await pool.query(`
-      SELECT cp.id, cp.student_id, cp.course_id, cp.amount_paid, cp.payment_method, cp.status, cp.created_at AS purchase_date,
+      SELECT cp.id, cp.student_id, cp.course_id, cp.amount_paid, cp.payment_method, cp.status, cp.purchase_date,
              s.name as student_name, s.student_id, s.email as student_email,
-             c.title AS course_name, c.price
+             c.course_name, c.price
       FROM course_purchases cp
       JOIN students s ON cp.student_id = s.id
       JOIN courses c ON cp.course_id = c.id
-      ORDER BY cp.created_at DESC
+      ORDER BY cp.purchase_date DESC
     `);
     res.json({ success: true, purchases });
   } catch (err) {

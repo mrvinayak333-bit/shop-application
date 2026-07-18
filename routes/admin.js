@@ -21,7 +21,7 @@ const pickupStorage = multer.diskStorage({
 const uploadPickup = multer({ storage: pickupStorage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 router.use(authenticateToken);
-router.use(authorize('admin', 'master'));
+router.use(authorize('admin'));
 
 router.get('/dashboard', async (req, res) => {
   try {
@@ -221,7 +221,7 @@ router.get('/export/activity', async (req, res) => {
        FROM activity_logs al
        LEFT JOIN admins a ON al.user_id = a.id AND al.user_role = 'admin'
        LEFT JOIN technicians t ON al.user_id = t.id AND al.user_role = 'technician'
-       LEFT JOIN master_users m ON al.user_id = m.id AND al.user_role = 'master'
+       LEFT JOIN masters m ON al.user_id = m.id AND al.user_role = 'master'
        ORDER BY al.created_at DESC LIMIT 5000`
     );
     
@@ -313,7 +313,7 @@ router.get('/quotations', async (req, res) => {
 router.get('/students', async (req, res) => {
   try {
     const [students] = await pool.query(`
-      SELECT id, student_id, name, email, mobile, course AS class, status, created_at
+      SELECT id, student_id, name, email, mobile, class, status, created_at
       FROM students
       ORDER BY name ASC
     `);

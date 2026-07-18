@@ -7,6 +7,17 @@ import Navbar from '../components/Navbar';
 import Loading from '../components/Loading';
 import ToastContainer, { showToast } from '../components/Toast';
 
+const paymentMethods = [
+  { name: 'Cash', icon: '💵' },
+  { name: 'UPI', icon: '📱' },
+  { name: 'PhonePe', icon: '📲' },
+  { name: 'Google Pay', icon: '🔵' },
+  { name: 'Paytm', icon: '💳' },
+  { name: 'Debit Card', icon: '💳' },
+  { name: 'Credit Card', icon: '💳' },
+  { name: 'Net Banking', icon: '🏦' },
+];
+
 export default function PaymentPage() {
   const { id } = useParams();
   const { isAuthenticated, user } = useAuth();
@@ -15,7 +26,6 @@ export default function PaymentPage() {
   const [quotation, setQuotation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedMethod, setSelectedMethod] = useState('');
-  const [dbPaymentMethods, setDbPaymentMethods] = useState([]);
   const [screenshot, setScreenshot] = useState(null);
   const [screenshotPreview, setScreenshotPreview] = useState('');
   const [processing, setProcessing] = useState(false);
@@ -25,20 +35,7 @@ export default function PaymentPage() {
   useEffect(() => {
     if (!isAuthenticated) { navigate('/login/customer'); return; }
     loadRepair();
-    fetchPaymentMethods();
   }, [id, isAuthenticated, navigate]);
-
-  const fetchPaymentMethods = async () => {
-    try {
-      const res = await api.get('/payment/methods');
-      if (res?.success) {
-        setDbPaymentMethods(res.methods || []);
-        if (res.methods?.length > 0) setSelectedMethod(res.methods[0].name);
-      }
-    } catch (err) {
-      console.error('Failed to load payment methods', err);
-    }
-  };
 
   const loadRepair = async () => {
     try {
@@ -70,41 +67,33 @@ export default function PaymentPage() {
   const handlePayment = async () => {
     if (!selectedMethod) return showToast('Please select a payment method', 'error');
     setProcessing(true);
-
-    const formData = new FormData();
-    formData.append('payment_method', selectedMethod);
-    if (screenshot) {
-      formData.append('screenshot', screenshot);
-    }
-
     try {
-      const res = await api.upload(`/customer/repairs/${id}/pay`, formData);
+      const formData = new FormData();
+      formData.append('payment_method', selectedMethod);
+      formData.append('amount', repair?.total_cost || 0);
+      if (screenshot) formData.append('screenshot', screenshot);
+      const res = await api.post(`/repair/${id}/payment`, formData);
       if (res.success) {
         setSuccess(true);
-        setInvoiceNumber(res.invoice_number || 'INV-' + id);
+        setInvoiceNumber(res.invoice_number);
+        showToast('Payment submitted successfully!', 'success');
       } else {
-        showToast(res.message || 'Payment submission failed', 'error');
+        showToast(res.message || 'Error', 'error');
       }
-    } catch (err) {
-      showToast('Connection error. Failed to record payment.', 'error');
-    } finally {
-      setProcessing(false);
-    }
+    } catch { showToast('Error submitting payment', 'error'); }
+    setProcessing(false);
   };
 
-  if (loading) return <Loading />;
-
-  if (!repair) {
-    return (
-      <div className="min-h-screen bg-gray-50 pb-12 transition">
-        <Navbar />
-        <main className="max-w-md mx-auto px-4 py-12 text-center">
-          <p className="text-red-500 font-bold mb-4">Quotation or Repair not found.</p>
-          <button onClick={() => navigate('/dashboard/customer')} className="btn-primary">Go to Dashboard</button>
-        </main>
+  if (loading) return <div className="min-h-screen"><Navbar /><Loading /></div>;
+  if (!repair) return (
+    <div className="min-h-screen"><Navbar />
+      <div className="max-w-2xl mx-auto px-4 py-20 text-center">
+        <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+        <p className="text-gray-500 text-lg">Repair not found or payment not available</p>
+        <button onClick={() => navigate('/dashboard/customer')} className="btn-primary mt-4">Back to Dashboard</button>
       </div>
-    );
-  }
+    </div>
+  );
 
   const partsC = parseFloat(repair.parts_cost || 0);
   const laborC = parseFloat(repair.labor_cost || 0);
@@ -114,20 +103,21 @@ export default function PaymentPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gray-50 pb-12 transition">
+      <div className="min-h-screen bg-gray-50">
         <Navbar />
-        <main className="max-w-md mx-auto px-4 py-12">
-          <div className="card text-center py-8">
-            <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Payment Submitted!</h1>
-            <p className="text-sm text-gray-500 mb-6">
-              Thank you! Your payment details are submitted and under verification by our technical department.
-            </p>
-            <div className="bg-gray-50 rounded-xl p-4 mb-6 border border-gray-100 text-sm space-y-2">
-              <div className="flex justify-between text-gray-600"><span>Invoice No:</span><span className="font-bold text-gray-800">{invoiceNumber}</span></div>
-              <div className="flex justify-between text-gray-600"><span>Device:</span><span className="font-semibold text-gray-800">{repair.brand} {repair.model}</span></div>
-              <div className="flex justify-between text-gray-600"><span>Amount Paid:</span><span className="font-black text-green-700">₹{total.toFixed(2)}</span></div>
+        <ToastContainer />
+        <main className="max-w-lg mx-auto px-4 py-10 text-center">
+          <div className="card">
+            <CheckCircle className="w-20 h-20 text-green-500 mx-auto mb-4" />
+            <h1 className="text-2xl font-bold text-green-700 mb-2">Payment Submitted!</h1>
+            <p className="text-gray-600 mb-4">Your payment has been recorded and is pending verification.</p>
+            <div className="p-4 bg-green-50 rounded-lg mb-4 space-y-2 text-sm">
+              <p><span className="font-medium">Invoice:</span> {invoiceNumber}</p>
+              <p><span className="font-medium">Amount:</span> ₹{total.toFixed(2)}</p>
+              <p><span className="font-medium">Method:</span> {selectedMethod}</p>
+              <p><span className="font-medium">Tracking:</span> {repair.tracking_number}</p>
             </div>
+            <p className="text-xs text-gray-500 mb-4">Admin will verify your payment shortly. You will be notified once verified.</p>
             <button onClick={() => navigate('/dashboard/customer')} className="btn-primary w-full">Back to Dashboard</button>
           </div>
         </main>
@@ -136,19 +126,26 @@ export default function PaymentPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-12 transition">
+    <div className="min-h-screen bg-gray-50">
       <Navbar />
       <ToastContainer />
-      <main className="max-w-md mx-auto px-4 py-6">
-        <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1 text-gray-500 hover:text-green-600 font-bold mb-4 transition text-sm">
+      <main className="max-w-2xl mx-auto px-4 py-6">
+        <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1 text-blue-600 hover:underline mb-4 text-sm">
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
 
         {/* Invoice Summary */}
         <div className="card mb-4">
-          <h2 className="font-semibold mb-3 flex items-center gap-2">
-            <FileText className="w-5 h-5 text-green-600" /> Invoice summary
-          </h2>
+          <h1 className="text-xl font-bold mb-1 flex items-center gap-2">
+            <CreditCard className="w-6 h-6 text-green-600" /> Payment
+          </h1>
+          <p className="text-sm text-gray-500 font-mono">{repair.tracking_number}</p>
+          <p className="text-sm text-gray-600">{repair.brand} {repair.model}</p>
+        </div>
+
+        {/* Amount Breakdown */}
+        <div className="card mb-4">
+          <h2 className="font-semibold mb-3">Invoice Summary</h2>
           <div className="space-y-2">
             <div className="flex justify-between p-2 bg-gray-50 rounded text-sm">
               <span className="text-gray-600">Parts Cost</span><span>₹{partsC.toFixed(2)}</span>
@@ -176,43 +173,16 @@ export default function PaymentPage() {
         <div className="card mb-4">
           <h2 className="font-semibold mb-3">Select Payment Method</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {dbPaymentMethods.map(m => (
-              <button key={m.id} onClick={() => setSelectedMethod(m.name)}
+            {paymentMethods.map(m => (
+              <button key={m.name} onClick={() => setSelectedMethod(m.name)}
                 className={`p-3 rounded-lg border text-center transition ${
                   selectedMethod === m.name ? 'bg-green-600 text-white border-green-600 ring-2 ring-green-200' : 'bg-white text-gray-700 border-gray-300 hover:border-green-400'
                 }`}>
-                <span className="text-2xl block mb-1">
-                  {m.type === 'upi' ? '📱' : m.type === 'cash' ? '💵' : '💳'}
-                </span>
+                <span className="text-2xl block mb-1">{m.icon}</span>
                 <span className="text-xs font-medium">{m.name}</span>
               </button>
             ))}
-            {dbPaymentMethods.length === 0 && (
-              <p className="col-span-4 text-xs text-red-500 font-bold">No active payment methods configured</p>
-            )}
           </div>
-          {/* Render active method details */}
-          {(() => {
-            const sel = dbPaymentMethods.find(m => m.name === selectedMethod);
-            if (!sel) return null;
-            return (
-              <div className="mt-4 p-3 bg-gray-50 border border-gray-100 rounded-lg text-xs space-y-1.5">
-                <p className="font-bold text-gray-800">Payment details for {sel.name}:</p>
-                {sel.type === 'upi' && sel.upi_id && (
-                  <p className="font-mono text-green-700 font-bold">UPI ID: {sel.upi_id}</p>
-                )}
-                {(sel.type === 'card' || sel.type === 'netbanking') && (
-                  <>
-                    <p className="font-mono text-gray-700">Account No: {sel.bank_account || 'N/A'}</p>
-                    {sel.ifsc_code && <p className="font-mono text-gray-700">IFSC Code: {sel.ifsc_code}</p>}
-                  </>
-                )}
-                {sel.type === 'cash' && (
-                  <p className="text-gray-600">Please pay in cash directly at the service center.</p>
-                )}
-              </div>
-            );
-          })()}
         </div>
 
         {/* Screenshot Upload */}

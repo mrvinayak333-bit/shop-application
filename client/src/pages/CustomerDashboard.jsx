@@ -25,7 +25,6 @@ export default function CustomerDashboard() {
   const [issueDescription, setIssueDescription] = useState('');
   const [showIssueForm, setShowIssueForm] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('');
-  const [dbPaymentMethods, setDbPaymentMethods] = useState([]);
   const [paymentScreenshot, setPaymentScreenshot] = useState(null);
   const [processingPayment, setProcessingPayment] = useState(null);
   const [feedbackRating, setFeedbackRating] = useState(5);
@@ -38,20 +37,7 @@ export default function CustomerDashboard() {
       return;
     }
     loadDashboard();
-    fetchPaymentMethods();
   }, [isAuthenticated, user, navigate]);
-
-  const fetchPaymentMethods = async () => {
-    try {
-      const res = await api.get('/payment/methods');
-      if (res?.success) {
-        setDbPaymentMethods(res.methods || []);
-        if (res.methods?.length > 0) setPaymentMethod(res.methods[0].name);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
 
   const loadDashboard = async () => {
     try {
@@ -476,37 +462,12 @@ export default function CustomerDashboard() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                      {dbPaymentMethods.map(m => (
-                        <button key={m.id} type="button" onClick={() => setPaymentMethod(m.name)} className={`p-2 rounded-lg border text-sm font-medium transition ${paymentMethod === m.name ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-700 border-gray-300 hover:border-green-400'}`}>
-                          {m.name}
+                      {['Cash','UPI','PhonePe','Google Pay','Paytm','Debit Card','Credit Card','Net Banking'].map(m => (
+                        <button key={m} onClick={() => setPaymentMethod(m)} className={`p-2 rounded-lg border text-sm font-medium transition ${paymentMethod === m ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-700 border-gray-300 hover:border-green-400'}`}>
+                          {m}
                         </button>
                       ))}
-                      {dbPaymentMethods.length === 0 && (
-                        <p className="col-span-4 text-xs text-red-500 font-bold">No active payment methods configured</p>
-                      )}
                     </div>
-                    {/* Render active method specifications */}
-                    {(() => {
-                      const sel = dbPaymentMethods.find(m => m.name === paymentMethod);
-                      if (!sel) return null;
-                      return (
-                        <div className="mt-3 p-3 bg-white border border-green-100 rounded-lg text-xs space-y-1.5">
-                          <p className="font-bold text-gray-800">Payment details for {sel.name}:</p>
-                          {sel.type === 'upi' && sel.upi_id && (
-                            <p className="font-mono text-green-700 font-bold">UPI ID: {sel.upi_id}</p>
-                          )}
-                          {(sel.type === 'card' || sel.type === 'netbanking') && (
-                            <>
-                              <p className="font-mono text-gray-700">Account No: {sel.bank_account || 'N/A'}</p>
-                              {sel.ifsc_code && <p className="font-mono text-gray-700">IFSC Code: {sel.ifsc_code}</p>}
-                            </>
-                          )}
-                          {sel.type === 'cash' && (
-                            <p className="text-gray-600">Please pay in cash directly at the service center.</p>
-                          )}
-                        </div>
-                      );
-                    })()}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Payment Screenshot (optional)</label>

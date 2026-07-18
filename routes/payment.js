@@ -3,16 +3,6 @@ const router = express.Router();
 const pool = require('../config/db');
 const { authenticateToken, authorize } = require('../middleware/auth');
 
-// Public/Authenticated: Get all active payment methods
-router.get('/methods', authenticateToken, async (req, res) => {
-  try {
-    const [rows] = await pool.query('SELECT * FROM payment_methods WHERE is_active = 1 ORDER BY id');
-    res.json({ success: true, methods: rows });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-});
-
 // MASTER/ADMIN: Create invoice
 router.post('/invoice', authenticateToken, authorize('master', 'admin'), async (req, res) => {
   try {

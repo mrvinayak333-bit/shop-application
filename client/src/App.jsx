@@ -16,7 +16,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import AdminRepairControl from './pages/AdminRepairControl';
 import MasterDashboard from './pages/MasterDashboard';
 import StudentDashboard from './pages/StudentDashboard';
-import CoursesPage from './pages/CoursePurchasePage';
+import CoursesPage from './pages/CoursesPage';
 import StaffLogin from './pages/StaffLogin';
 import EnrolledCourses from './pages/EnrolledCourses';
 

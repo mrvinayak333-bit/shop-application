@@ -22,11 +22,6 @@ router.get('/dashboard', async (req, res) => {
     const [[{ pendingRepairs }]] = await pool.query("SELECT COUNT(*) as pendingRepairs FROM repair_requests WHERE status != 'delivered' AND status != 'cancelled'");
     const [[{ totalRevenue }]] = await pool.query('SELECT COALESCE(SUM(paid_amount), 0) as totalRevenue FROM invoices');
     const [[{ totalCourses }]] = await pool.query('SELECT COUNT(*) as totalCourses FROM courses WHERE status = ?', ['active']);
-    
-    // Additional premium counters:
-    const [[{ todayCustomers }]] = await pool.query('SELECT COUNT(*) as todayCustomers FROM customers WHERE DATE(created_at) = CURDATE()');
-    const [[{ deliveredRepairs }]] = await pool.query("SELECT COUNT(*) as deliveredRepairs FROM repair_requests WHERE status = 'delivered'");
-    const [[{ completedRepairs }]] = await pool.query("SELECT COUNT(*) as completedRepairs FROM repair_requests WHERE status = 'repair_completed'");
 
     // Recent repairs
     const [recentRepairs] = await pool.query(
@@ -41,7 +36,6 @@ router.get('/dashboard', async (req, res) => {
       stats: {
         totalCustomers, totalStudents, totalAdmins, totalTechnicians,
         totalRepairs, pendingRepairs, totalRevenue, totalCourses,
-        todayCustomers, deliveredRepairs, completedRepairs,
         recentRepairs
       }
     });
@@ -142,12 +136,12 @@ router.post('/students', async (req, res) => {
       const tokens = normalizedCourse.split(/\s+/).filter(word => word.length > 2);
       let query = `SELECT id FROM courses
                    WHERE status = 'active' AND (
-                     title = ?`;
-      const params = [course];
+                     course_name = ? OR course_code = ?`;
+      const params = [course, course];
 
       for (const token of tokens) {
-        query += ' OR LOWER(title) LIKE ?';
-        params.push(`%${token}%`);
+        query += ' OR LOWER(course_name) LIKE ? OR LOWER(course_code) LIKE ?';
+        params.push(`%${token}%`, `%${token}%`);
       }
 
       query += ') LIMIT 1';
@@ -155,8 +149,8 @@ router.post('/students', async (req, res) => {
       const [courseRows] = await pool.query(query, params);
       if (courseRows.length > 0) {
         await pool.query(
-          'INSERT IGNORE INTO course_enrollments (student_id, course_id) VALUES (?, ?)',
-          [result.insertId, courseRows[0].id]
+          'INSERT IGNORE INTO course_enrollments (student_id, course_id, enrolled_date, status) VALUES (?, ?, CURDATE(), ?)',
+          [result.insertId, courseRows[0].id, 'enrolled']
         );
       }
     }
@@ -233,7 +227,7 @@ router.get('/admins', async (req, res) => {
 
 router.post('/admins', async (req, res) => {
   try {
-    const { name, email, password, mobile } = req.body;
+    const { name, email, password, mobile, alternate_mobile, aadhar_number, aadhar_photo, bank_account, bank_ifsc, commission_type, commission_amount } = req.body;
     if (!name || !email || !password) {
       return res.status(400).json({ success: false, message: 'Name, email and password are required' });
     }
@@ -245,8 +239,8 @@ router.post('/admins', async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const [result] = await pool.query(
-      'INSERT INTO admins (name, email, password, mobile, created_by) VALUES (?,?,?,?,?)',
-      [name, email, hashedPassword, mobile || null, req.user.id]
+      'INSERT INTO admins (name, email, password, mobile, alternate_mobile, aadhar_number, aadhar_photo, bank_account, bank_ifsc, commission_type, commission_amount, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+      [name, email, hashedPassword, mobile, alternate_mobile || null, aadhar_number || null, aadhar_photo || null, bank_account || null, bank_ifsc || null, commission_type || null, commission_amount || 0, req.user.id]
     );
 
     res.status(201).json({ success: true, message: 'Admin created successfully!', admin: { id: result.insertId, email } });
@@ -258,15 +252,14 @@ router.post('/admins', async (req, res) => {
 
 router.put('/admins/:id', async (req, res) => {
   try {
-    const { name, mobile, status, password } = req.body;
-    let query = 'UPDATE admins SET name=?, mobile=?, status=?';
-    let params = [name, mobile || null, status || 'active'];
+    const { name, mobile, alternate_mobile, status, aadhar_number, bank_account, bank_ifsc, commission_type, commission_amount, password } = req.body;
+    let query = 'UPDATE admins SET name=?, mobile=?, alternate_mobile=?, status=?, aadhar_number=?, bank_account=?, bank_ifsc=?, commission_type=?, commission_amount=?';
+    let params = [name, mobile, alternate_mobile || null, status, aadhar_number || null, bank_account || null, bank_ifsc || null, commission_type || null, commission_amount || 0];
     if (password) { query += ', password=?'; params.push(await bcrypt.hash(password, 10)); }
     query += ' WHERE id=?'; params.push(req.params.id);
     await pool.query(query, params);
     res.json({ success: true, message: 'Admin updated successfully' });
   } catch (err) {
-    console.error('Admin Update Error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -422,7 +415,7 @@ router.get('/reports/admin-performance', async (req, res) => {
               COALESCE(SUM(i.paid_amount), 0) as revenue_generated,
               a.created_at
        FROM admins a
-       LEFT JOIN repair_requests rr ON a.id = rr.admin_verified_by
+       LEFT JOIN repair_requests rr ON a.id = rr.assigned_admin
        LEFT JOIN invoices i ON rr.id = i.repair_id
        GROUP BY a.id
        ORDER BY revenue_generated DESC`

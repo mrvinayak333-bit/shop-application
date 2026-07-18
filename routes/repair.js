@@ -32,29 +32,10 @@ async function generateTrackingNumber(pool) {
   return `SRM-${year}-${String(count).padStart(6, '0')}`;
 }
 
-// GET DYNAMIC DEVICE CONFIG (Types, Brands, Models)
-router.get('/config', async (req, res) => {
+// CUSTOMER: Register a repair
+router.post('/', authenticateToken, authorize('customer'), async (req, res) => {
   try {
-    const [types] = await pool.query('SELECT * FROM device_types ORDER BY name ASC');
-    const [brands] = await pool.query('SELECT * FROM brands ORDER BY name ASC');
-    const [models] = await pool.query('SELECT * FROM models ORDER BY name ASC');
-    res.json({ success: true, types, brands, models });
-  } catch (err) {
-    console.error('Failed to load device config:', err);
-    res.status(500).json({ success: false, message: 'Server error loading config' });
-  }
-});
-
-// CUSTOMER: Register a repair (with dynamic brand selection, custom fields, and photos upload)
-router.post('/', authenticateToken, authorize('customer'), uploadRepairPhoto.array('photos', 5), async (req, res) => {
-  try {
-    const { 
-      device_type, brand, model, imei, issue_description, device_condition, 
-      device_condition_multi, accessories, first_name, last_name, customer_mobile, 
-      customer_address, model_number, imei2, serial_number, processor, ram, 
-      storage, color, purchase_date, warranty_status 
-    } = req.body;
-
+    const { device_type, brand, model, imei, issue_description, device_condition, device_condition_multi, accessories, first_name, last_name, customer_mobile, customer_address } = req.body;
     if (!device_type || !brand || !issue_description) {
       return res.status(400).json({ success: false, message: 'Device type, brand and issue description are required' });
     }
@@ -64,41 +45,18 @@ router.post('/', authenticateToken, authorize('customer'), uploadRepairPhoto.arr
     const qrCode = await QRCode.toDataURL(qrData);
 
     const [result] = await pool.query(
-      `INSERT INTO repair_requests (
-        tracking_number, customer_id, first_name, last_name, customer_mobile, customer_address, 
-        device_type, brand, model, imei, issue_description, device_condition, 
-        device_condition_multi, accessories, qr_code, status,
-        model_number, imei2, serial_number, processor, ram, storage, color, purchase_date, warranty_status
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'registered',?,?,?,?,?,?,?,?,?)`,
-      [
-        trackingNumber, req.user.id, first_name || null, last_name || null, customer_mobile || null, customer_address || null, 
-        device_type, brand, model || null, imei || null, issue_description, device_condition || null, 
-        device_condition_multi || null, accessories || null, qrCode,
-        model_number || null, imei2 || null, serial_number || null, processor || null, ram || null, 
-        storage || null, color || null, purchase_date || null, warranty_status || null
-      ]
+      `INSERT INTO repair_requests (tracking_number, customer_id, first_name, last_name, customer_mobile, customer_address, device_type, brand, model, imei, issue_description, device_condition, device_condition_multi, accessories, qr_code, status)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'registered')`,
+      [trackingNumber, req.user.id, first_name || null, last_name || null, customer_mobile || null, customer_address || null, device_type, brand, model, imei, issue_description, device_condition, device_condition_multi || null, accessories, qrCode]
     );
 
-    const repairId = result.insertId;
-
-    // Handle photos upload if provided
-    if (req.files && req.files.length > 0) {
-      for (const file of req.files) {
-        const photoPath = `/uploads/repair_photos/${file.filename}`;
-        await pool.query(
-          'INSERT INTO repair_photos (repair_id, photo_type, file_path, uploaded_by) VALUES (?, "condition", ?, ?)',
-          [repairId, photoPath, req.user.id]
-        );
-      }
-    }
-
-    await pool.query('INSERT INTO repair_status (repair_id, status, notes) VALUES (?,?,?)', [repairId, 'registered', 'Repair request registered']);
+    await pool.query('INSERT INTO repair_status (repair_id, status, notes) VALUES (?,?,?)', [result.insertId, 'registered', 'Repair request registered']);
     await pool.query('UPDATE customers SET total_repairs = total_repairs + 1 WHERE id = ?', [req.user.id]);
     await pool.query('INSERT INTO activity_logs (user_id, user_role, action, description) VALUES (?,?,?,?)', [req.user.id, 'customer', 'REPAIR_REGISTER', `Repair registered: ${trackingNumber}`]);
 
     res.status(201).json({
       success: true, message: 'Your repair request submitted successfully!',
-      repair: { id: repairId, tracking_number: trackingNumber, qr_code: qrCode }
+      repair: { id: result.insertId, tracking_number: trackingNumber, qr_code: qrCode }
     });
   } catch (err) {
     console.error('Repair Registration Error:', err);
@@ -996,119 +954,6 @@ router.get('/delivery/ready', authenticateToken, authorize('admin'), async (req,
     );
     res.json({ success: true, repairs: rows });
   } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
-});
-
-// =====================================================
-// MASTER: DEVICE TYPES CONFIG CRUD
-// =====================================================
-router.get('/manage/device-types', authenticateToken, authorize('master', 'admin'), async (req, res) => {
-  try {
-    const [rows] = await pool.query('SELECT * FROM device_types ORDER BY name ASC');
-    res.json({ success: true, types: rows });
-  } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
-});
-
-router.post('/manage/device-types', authenticateToken, authorize('master', 'admin'), async (req, res) => {
-  try {
-    const { name } = req.body;
-    if (!name) return res.status(400).json({ success: false, message: 'Name is required' });
-    await pool.query('INSERT INTO device_types (name, is_active) VALUES (?, 1)', [name]);
-    res.status(201).json({ success: true, message: 'Device type created successfully' });
-  } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
-});
-
-router.put('/manage/device-types/:id', authenticateToken, authorize('master', 'admin'), async (req, res) => {
-  try {
-    const { name, is_active } = req.body;
-    await pool.query('UPDATE device_types SET name = ?, is_active = ? WHERE id = ?', [name, is_active, req.params.id]);
-    res.json({ success: true, message: 'Device type updated successfully' });
-  } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
-});
-
-router.delete('/manage/device-types/:id', authenticateToken, authorize('master', 'admin'), async (req, res) => {
-  try {
-    await pool.query('DELETE FROM device_types WHERE id = ?', [req.params.id]);
-    res.json({ success: true, message: 'Device type deleted successfully' });
-  } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
-});
-
-// =====================================================
-// MASTER: BRANDS CONFIG CRUD
-// =====================================================
-router.get('/manage/brands', authenticateToken, authorize('master', 'admin'), async (req, res) => {
-  try {
-    const [rows] = await pool.query(
-      `SELECT b.*, dt.name AS device_type_name 
-       FROM brands b
-       JOIN device_types dt ON b.device_type_id = dt.id
-       ORDER BY dt.name ASC, b.name ASC`
-    );
-    res.json({ success: true, brands: rows });
-  } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
-});
-
-router.post('/manage/brands', authenticateToken, authorize('master', 'admin'), async (req, res) => {
-  try {
-    const { device_type_id, name } = req.body;
-    if (!device_type_id || !name) return res.status(400).json({ success: false, message: 'Device Type and Brand Name are required' });
-    await pool.query('INSERT INTO brands (device_type_id, name, is_active) VALUES (?, ?, 1)', [device_type_id, name]);
-    res.status(201).json({ success: true, message: 'Brand created successfully' });
-  } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
-});
-
-router.put('/manage/brands/:id', authenticateToken, authorize('master', 'admin'), async (req, res) => {
-  try {
-    const { device_type_id, name, is_active } = req.body;
-    await pool.query('UPDATE brands SET device_type_id = ?, name = ?, is_active = ? WHERE id = ?', [device_type_id, name, is_active, req.params.id]);
-    res.json({ success: true, message: 'Brand updated successfully' });
-  } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
-});
-
-router.delete('/manage/brands/:id', authenticateToken, authorize('master', 'admin'), async (req, res) => {
-  try {
-    await pool.query('DELETE FROM brands WHERE id = ?', [req.params.id]);
-    res.json({ success: true, message: 'Brand deleted successfully' });
-  } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
-});
-
-// =====================================================
-// MASTER: MODELS CONFIG CRUD
-// =====================================================
-router.get('/manage/models', authenticateToken, authorize('master', 'admin'), async (req, res) => {
-  try {
-    const [rows] = await pool.query(
-      `SELECT m.*, b.name AS brand_name, dt.name AS device_type_name, b.device_type_id
-       FROM models m
-       JOIN brands b ON m.brand_id = b.id
-       JOIN device_types dt ON b.device_type_id = dt.id
-       ORDER BY dt.name ASC, b.name ASC, m.name ASC`
-    );
-    res.json({ success: true, models: rows });
-  } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
-});
-
-router.post('/manage/models', authenticateToken, authorize('master', 'admin'), async (req, res) => {
-  try {
-    const { brand_id, name } = req.body;
-    if (!brand_id || !name) return res.status(400).json({ success: false, message: 'Brand and Model Name are required' });
-    await pool.query('INSERT INTO models (brand_id, name, is_active) VALUES (?, ?, 1)', [brand_id, name]);
-    res.status(201).json({ success: true, message: 'Model created successfully' });
-  } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
-});
-
-router.put('/manage/models/:id', authenticateToken, authorize('master', 'admin'), async (req, res) => {
-  try {
-    const { brand_id, name, is_active } = req.body;
-    await pool.query('UPDATE models SET brand_id = ?, name = ?, is_active = ? WHERE id = ?', [brand_id, name, is_active, req.params.id]);
-    res.json({ success: true, message: 'Model updated successfully' });
-  } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
-});
-
-router.delete('/manage/models/:id', authenticateToken, authorize('master', 'admin'), async (req, res) => {
-  try {
-    await pool.query('DELETE FROM models WHERE id = ?', [req.params.id]);
-    res.json({ success: true, message: 'Model deleted successfully' });
-  } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
 module.exports = router;

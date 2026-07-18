@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import api from './api';
-import { Device } from '@capacitor/device';
 
 const AuthContext = createContext(null);
 
@@ -29,21 +28,6 @@ export function AuthProvider({ children }) {
       loginData.mobile = mobileOrStudentId;
     } else if (role === 'student' && mobileOrStudentId) {
       loginData.studentId = mobileOrStudentId;
-      
-      // Course Security: Get Android device ID, fall back to persistent browser UUID
-      let deviceId = null;
-      try {
-        const info = await Device.getId();
-        deviceId = info.identifier;
-      } catch (e) {
-        // Fallback for web browser testing
-        deviceId = localStorage.getItem('srms_device_id');
-        if (!deviceId) {
-          deviceId = 'web_' + Math.random().toString(36).substring(2, 15) + '_' + Date.now().toString(36);
-          localStorage.setItem('srms_device_id', deviceId);
-        }
-      }
-      loginData.deviceId = deviceId;
     } else if (email) {
       loginData.email = email;
     }

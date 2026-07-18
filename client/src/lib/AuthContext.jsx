@@ -76,7 +76,16 @@ export function AuthProvider({ children }) {
       
       // Check status of user in public profile first
       const profile = await fetchProfileByEmail(authEmail);
-      if (profile && profile.status === 'inactive') {
+      if (!profile) {
+        return { success: false, message: 'Invalid credentials or account inactive' };
+      }
+
+      if (profile.role !== role) {
+        console.warn(`[Auth] Role mismatch for login: expected ${role}, got ${profile.role}`);
+        return { success: false, message: 'Invalid credentials or role mismatch' };
+      }
+
+      if (profile.status === 'inactive') {
         console.warn(`[Auth] Inactive account tried to login: ${authEmail}`);
         return { success: false, message: 'Account is inactive' };
       }

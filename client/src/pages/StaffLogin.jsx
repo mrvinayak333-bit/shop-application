@@ -5,7 +5,7 @@ import { useAuth } from '../lib/AuthContext';
 import ToastContainer, { showToast } from '../components/Toast';
 
 export default function StaffLogin() {
-  const [email, setEmail] = useState('');
+  const [staffId, setStaffId] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -14,35 +14,19 @@ export default function StaffLogin() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!email || !password) return showToast('Email and password required', 'error');
+    if (!staffId || !password) return showToast('Staff ID and password required', 'error');
     setLoading(true);
 
     try {
-      // Try admin login first
-      let res = await login(email, password, 'admin');
+      // Try staff login
+      let res = await login(null, password, 'staff', staffId);
       if (res.success) {
-        showToast('Welcome Admin!');
+        showToast('Welcome Staff Member!');
         navigate('/dashboard/admin');
         return;
       }
 
-      // Try technician login
-      res = await login(email, password, 'technician');
-      if (res.success) {
-        showToast('Welcome Technician!');
-        navigate('/technician');
-        return;
-      }
-
-      // Try master login
-      res = await login(email, password, 'master');
-      if (res.success) {
-        showToast('Welcome Master!');
-        navigate('/dashboard/master');
-        return;
-      }
-
-      showToast('Invalid Staff ID or password', 'error');
+      showToast(res.message || 'Invalid Staff ID or password', 'error');
     } catch (err) {
       showToast('Login failed. Please try again.', 'error');
     } finally {
@@ -70,10 +54,10 @@ export default function StaffLogin() {
               <div className="relative">
                 <Shield className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
-                  type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="your@email.com"
+                  type="text"
+                  value={staffId}
+                  onChange={e => setStaffId(e.target.value)}
+                  placeholder="STF-2026-0001"
                   className="input pl-10"
                   required
                 />

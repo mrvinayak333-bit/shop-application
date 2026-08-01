@@ -19,6 +19,7 @@ export default function CustomerDashboard() {
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [selectedRepairId, setSelectedRepairId] = useState(null);
+  const [accessoryOrders, setAccessoryOrders] = useState([]);
 
   // Delivery workflow states
   const [confirmingRepair, setConfirmingRepair] = useState(null);
@@ -44,6 +45,10 @@ export default function CustomerDashboard() {
       const res = await api.get('/customer/dashboard');
       if (res.success) setData(res);
       else showToast('Failed to load dashboard', 'error');
+
+      const orderRes = await api.get('/accessories/orders');
+      if (orderRes.success) setAccessoryOrders(orderRes.orders);
+      
       setLoading(false);
     } catch {
       showToast('Failed to load dashboard', 'error');
@@ -554,6 +559,50 @@ export default function CustomerDashboard() {
                   <p className="font-medium text-gray-900 text-sm">{n.title}</p>
                   <p className="text-gray-600 text-xs mt-1">{n.message}</p>
                   <p className="text-gray-400 text-xs mt-1">{new Date(n.created_at).toLocaleString()}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Accessories Orders Section */}
+        {accessoryOrders.length > 0 && (
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold mb-3">My Accessories Orders</h2>
+            <div className="space-y-3">
+              {accessoryOrders.map(order => (
+                <div key={order.id} className="card flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-in fade-in duration-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-gray-100 rounded-xl overflow-hidden shrink-0 border flex items-center justify-center">
+                      {order.product_image ? (
+                        <img src={order.product_image} alt={order.product_name} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-2xl">📦</span>
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-bold text-gray-800 text-sm">
+                        {order.product_name} {order.item_count > 1 ? `and ${order.item_count - 1} other items` : ''}
+                      </p>
+                      <p className="text-xs font-mono font-bold text-emerald-700 mt-0.5">{order.tracking_number}</p>
+                      <p className="text-[10px] text-gray-400 mt-1">
+                        Placed: {new Date(order.created_at).toLocaleDateString()} • Total: ₹{order.total_amount}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3 self-stretch sm:self-auto justify-between sm:justify-end">
+                    <span className={`text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider ${
+                      order.order_status === 'delivered' ? 'bg-green-100 text-green-800' :
+                      order.order_status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                      'bg-amber-100 text-amber-800'
+                    }`}>
+                      {order.order_status.replace('_', ' ')}
+                    </span>
+                    <Link to={`/track/${order.tracking_number}`} className="btn-primary py-2 px-3 text-xs font-semibold">
+                      Track Live
+                    </Link>
+                  </div>
                 </div>
               ))}
             </div>

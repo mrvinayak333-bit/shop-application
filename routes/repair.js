@@ -3,6 +3,7 @@ const router = express.Router();
 const pool = require('../config/db');
 const { authenticateToken, authorize } = require('../middleware/auth');
 const { uploadRepairPhoto } = require('../middleware/upload');
+const { creditCommission } = require('./commission_helper');
 const QRCode = require('qrcode');
 const multer = require('multer');
 const path = require('path');
@@ -367,6 +368,12 @@ router.put('/:id/repair-complete', authenticateToken, authorize('technician'), a
        `Your device ${r.tracking_number} repair has been completed successfully. Awaiting admin verification for delivery.`,
        'delivery']
     );
+
+    try {
+      await creditCommission(techId, 'technician', 'repair', repairId);
+    } catch (commErr) {
+      console.error('Error auto-crediting repair commission:', commErr);
+    }
 
     res.json({ success: true, message: 'Repair marked as completed. Admin will verify for delivery.' });
   } catch (err) {

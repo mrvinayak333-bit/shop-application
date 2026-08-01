@@ -22,10 +22,17 @@ const authenticateToken = (req, res, next) => {
 // Role-Based Authorization
 const authorize = (...roles) => {
   return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
+    const userRole = req.user.role;
+    const allowedRoles = [...roles];
+    // If admin is authorized, staff is also authorized (full access control)
+    if (allowedRoles.includes('admin') && !allowedRoles.includes('staff')) {
+      allowedRoles.push('staff');
+    }
+    
+    if (!allowedRoles.includes(userRole)) {
       return res.status(403).json({ 
         success: false, 
-        message: `Access denied. ${req.user.role} is not authorized for this resource.` 
+        message: `Access denied. ${userRole} is not authorized for this resource.` 
       });
     }
     next();

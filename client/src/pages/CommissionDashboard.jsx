@@ -16,7 +16,7 @@ export default function CommissionDashboard() {
   const [tab, setTab] = useState('my'); // my, all (for admin)
 
   useEffect(() => {
-    if (!isAuthenticated || (user?.role !== 'admin' && user?.role !== 'technician')) {
+    if (!isAuthenticated || (!['admin', 'technician', 'staff'].includes(user?.role))) {
       navigate('/');
       return;
     }
@@ -31,8 +31,8 @@ export default function CommissionDashboard() {
         setDashboard(res);
       }
       
-      // If admin, load all commissions
-      if (user?.role === 'admin') {
+      // If admin or staff, load all commissions
+      if (['admin', 'staff'].includes(user?.role)) {
         const allRes = await api.get('/transactions/commission/all');
         if (allRes?.success) setAllCommissions(allRes.commissions || []);
         
@@ -143,7 +143,7 @@ export default function CommissionDashboard() {
           >
             My Transactions
           </button>
-          {user?.role === 'admin' && (
+          {['admin', 'staff'].includes(user?.role) && (
             <button
               onClick={() => setTab('all')}
               className={`pb-3 px-4 font-medium border-b-2 transition ${
@@ -201,7 +201,7 @@ export default function CommissionDashboard() {
         )}
 
         {/* All Commissions Tab (Admin Only) */}
-        {tab === 'all' && user?.role === 'admin' && (
+        {tab === 'all' && ['admin', 'staff'].includes(user?.role) && (
           <div>
             {/* Summary by User */}
             <div className="mb-6 bg-white rounded-lg shadow overflow-hidden">

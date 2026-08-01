@@ -7,8 +7,8 @@ const { authenticateToken, authorize } = require('../middleware/auth');
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const [rows] = await pool.query(
-      'SELECT * FROM notifications WHERE (user_id=? AND user_role=?) OR (user_role=?) ORDER BY created_at DESC LIMIT 100',
-      [req.user.id, req.user.role, 'all']
+      'SELECT * FROM notifications WHERE (user_id=? AND user_role=?) OR (user_id IS NULL AND user_role=?) OR (user_role=?) ORDER BY created_at DESC LIMIT 100',
+      [req.user.id, req.user.role, req.user.role, 'all']
     );
     res.json({ success: true, notifications: rows });
   } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }

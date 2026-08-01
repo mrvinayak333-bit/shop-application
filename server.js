@@ -57,6 +57,8 @@ const paymentRoutes = require('./routes/payment');
 const reportRoutes = require('./routes/report');
 const transactionRoutes = require('./routes/transactions');
 const laptopRepairRoutes = require('./routes/laptop-repair');
+const accessoriesRoutes = require('./routes/accessories');
+const collectionRoutes = require('./routes/collection');
 
 // API Routes
 app.use('/api/auth', authRoutes);
@@ -75,6 +77,8 @@ app.use('/api/payment', paymentRoutes);
 app.use('/api/report', reportRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/laptop-repair', laptopRepairRoutes);
+app.use('/api/accessories', accessoriesRoutes);
+app.use('/api/collection', collectionRoutes);
 
 // Serve Frontend Pages
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));

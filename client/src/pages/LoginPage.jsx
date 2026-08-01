@@ -5,7 +5,7 @@ import { useAuth } from '../lib/AuthContext';
 import ToastContainer, { showToast } from '../components/Toast';
 
 const roleConfig = {
-  customer: { title: 'Customer Login', color: 'emerald', redirect: '/', field: 'mobile', label: 'Mobile Number', placeholder: '10-digit mobile number' },
+  customer: { title: 'Customer Login', color: 'emerald', redirect: '/', field: 'email_or_mobile', label: 'Mobile Number or Email', placeholder: 'Enter mobile number or email' },
   technician: { title: 'Technician Login', color: 'blue', redirect: '/technician', field: 'email', label: 'Email Address', placeholder: 'your@email.com' },
   admin: { title: 'Admin Login', color: 'purple', redirect: '/dashboard/admin', field: 'email', label: 'Email Address', placeholder: 'your@email.com' },
   master: { title: 'Master Login', color: 'orange', redirect: '/dashboard/master', field: 'email', label: 'Email Address', placeholder: 'your@email.com' },
@@ -31,8 +31,8 @@ export default function LoginPage() {
     
     // Call login with appropriate parameters based on role
     let res;
-    if (config.field === 'mobile') {
-      // Customer login with mobile number
+    if (config.field === 'email_or_mobile') {
+      // Customer login with mobile or email
       res = await login(null, password, 'customer', identifier);
     } else if (config.field === 'student_id') {
       // Student login with student ID
@@ -71,15 +71,15 @@ export default function LoginPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">{config.label}</label>
               <div className="relative">
-                {config.field === 'mobile' ? (
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                {config.field === 'email_or_mobile' ? (
+                  <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 ) : config.field === 'student_id' ? (
                   <BookOpen className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 ) : (
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 )}
                 <input
-                  type={config.field === 'mobile' ? 'tel' : 'text'}
+                  type="text"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
                   placeholder={config.placeholder}

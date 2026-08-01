@@ -58,8 +58,8 @@ async function request(url, options = {}) {
     if (res.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      if (window.location.pathname !== '/') {
-        window.location.href = '/login/technician';
+      if (window.location.pathname !== '/' && !window.location.pathname.startsWith('/login/')) {
+        window.location.href = '/';
       }
     }
 

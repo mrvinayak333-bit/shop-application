@@ -9,7 +9,7 @@ const { generateToken, authenticateToken } = require('../middleware/auth');
 // =====================================================
 router.post('/login', async (req, res) => {
   try {
-    const { email, password, role, studentId } = req.body;
+    const { email, password, role, studentId, staffId } = req.body;
 
     if (!password) {
       return res.status(400).json({ success: false, message: 'Password is required' });
@@ -50,6 +50,11 @@ router.post('/login', async (req, res) => {
         [user] = await pool.query('SELECT * FROM students WHERE student_id = ? AND status = ?', [studentId, 'active']);
         table = 'students';
         break;
+      case 'staff':
+        if (!staffId) return res.status(400).json({ success: false, message: 'Staff ID is required' });
+        [user] = await pool.query('SELECT * FROM staff_members WHERE staff_id = ? AND status = ?', [staffId, 'active']);
+        table = 'staff_members';
+        break;
       default:
         return res.status(400).json({ success: false, message: 'Invalid role specified' });
     }
@@ -80,6 +85,22 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
+    // Android device binding security check
+    if (role === 'student') {
+      const { androidDeviceId } = req.body;
+      if (androidDeviceId) {
+        if (userData.android_device_id) {
+          if (userData.android_device_id !== androidDeviceId) {
+            return res.status(403).json({ success: false, message: 'Access Denied: Account linked to another Android device' });
+          }
+        } else {
+          // Bind on first successful login
+          await pool.query('UPDATE students SET android_device_id = ? WHERE id = ?', [androidDeviceId, userData.id]);
+          userData.android_device_id = androidDeviceId;
+        }
+      }
+    }
+
     // Update last login
     await pool.query(`UPDATE ${table} SET last_login = NOW() WHERE ${idField} = ?`, [userData[idField]]);
 
@@ -95,7 +116,8 @@ router.post('/login', async (req, res) => {
       role: role,
       name: userData.name,
       email: userData.email || '',
-      studentId: userData.student_id || null
+      studentId: userData.student_id || null,
+      staffId: userData.staff_id || null
     };
 
     const token = generateToken(tokenPayload);
@@ -111,6 +133,7 @@ router.post('/login', async (req, res) => {
         mobile: userData.mobile,
         role: role,
         studentId: userData.student_id || null,
+        staffId: userData.staff_id || null,
         course: userData.course || null,
         batch: userData.batch || null
       }
@@ -137,6 +160,7 @@ router.get('/profile', authenticateToken, async (req, res) => {
       case 'technician': table = 'technicians'; break;
       case 'customer': table = 'customers'; break;
       case 'student': table = 'students'; break;
+      case 'staff': table = 'staff_members'; break;
       default: return res.status(400).json({ success: false, message: 'Invalid role' });
     }
 
@@ -176,6 +200,7 @@ router.post('/change-password', authenticateToken, async (req, res) => {
       case 'technician': table = 'technicians'; break;
       case 'customer': table = 'customers'; break;
       case 'student': table = 'students'; break;
+      case 'staff': table = 'staff_members'; break;
       default: return res.status(400).json({ success: false, message: 'Invalid role' });
     }
 

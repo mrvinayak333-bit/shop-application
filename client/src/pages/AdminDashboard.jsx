@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Wrench, Clock, CheckCircle, DollarSign, TrendingUp, Briefcase, Package, Percent, Award, BarChart3, Settings } from 'lucide-react';
+import { Users, Wrench, Clock, CheckCircle, DollarSign, TrendingUp, Briefcase, Package, Percent, Award, BarChart3, Settings, Truck, Landmark, Wallet } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import api from '../lib/api';
 import Navbar from '../components/Navbar';
@@ -16,8 +16,8 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
 
   useEffect(() => {
-    if (!isAuthenticated || user?.role !== 'admin') {
-      navigate('/login/admin');
+    if (!isAuthenticated || !['admin', 'staff'].includes(user?.role)) {
+      navigate('/login/staff');
       return;
     }
     api.get('/admin/dashboard').then(res => {
@@ -66,15 +66,53 @@ export default function AdminDashboard() {
       <main className="max-w-7xl mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-1">Admin Dashboard</h1>
+            <h1 className="text-2xl font-bold text-gray-900 mb-1">
+              {user?.role === 'staff' ? 'Staff Dashboard' : 'Admin Dashboard'}
+            </h1>
             <p className="text-gray-500 text-sm">Welcome, {user?.name}</p>
           </div>
-          <button
-            onClick={() => navigate('/admin/repair-control')}
-            className="btn-primary flex items-center gap-2"
-          >
-            <Settings className="w-4 h-4" /> Repair Control
-          </button>
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => navigate('/admin/accessories')}
+              className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2.5 px-4 rounded-xl flex items-center gap-2 transition shadow-sm hover:shadow-md text-sm"
+            >
+              <Package className="w-4 h-4" /> Manage Accessories
+            </button>
+            <button
+              onClick={() => navigate('/admin/orders')}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-xl flex items-center gap-2 transition shadow-sm hover:shadow-md text-sm"
+            >
+              <Truck className="w-4 h-4" /> Manage Orders
+            </button>
+            <button
+              onClick={() => navigate('/dashboard/collection')}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-4 rounded-xl flex items-center gap-2 transition shadow-sm hover:shadow-md text-sm"
+            >
+              <Landmark className="w-4 h-4" /> Payment Collection
+            </button>
+            <button
+              onClick={() => navigate('/dashboard/salary')}
+              className="bg-teal-600 hover:bg-teal-700 text-white font-semibold py-2.5 px-4 rounded-xl flex items-center gap-2 transition shadow-sm hover:shadow-md text-sm"
+            >
+              <Wallet className="w-4 h-4" /> Salary Wallet
+            </button>
+            {user?.role !== 'staff' && (
+              <>
+                <button
+                  onClick={() => navigate('/dashboard/master')}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-4 rounded-xl flex items-center gap-2 transition shadow-sm hover:shadow-md text-sm"
+                >
+                  <Briefcase className="w-4 h-4" /> Course Management & Assign
+                </button>
+                <button
+                  onClick={() => navigate('/admin/repair-control')}
+                  className="bg-gray-800 hover:bg-gray-900 text-white font-semibold py-2.5 px-4 rounded-xl flex items-center gap-2 transition shadow-sm hover:shadow-md text-sm"
+                >
+                  <Settings className="w-4 h-4" /> Repair Control
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Tab Navigation */}

@@ -3,7 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const pool = require('../config/db');
 const { authenticateToken, authorize } = require('../middleware/auth');
-const { uploadLogo } = require('../middleware/upload');
+const { uploadLogo, uploadCertificate, uploadProfile } = require('../middleware/upload');
 
 // All master routes require master authentication
 router.use(authenticateToken);
@@ -18,6 +18,7 @@ router.get('/dashboard', async (req, res) => {
     const [[{ totalStudents }]] = await pool.query('SELECT COUNT(*) as totalStudents FROM students');
     const [[{ totalAdmins }]] = await pool.query('SELECT COUNT(*) as totalAdmins FROM admins');
     const [[{ totalTechnicians }]] = await pool.query('SELECT COUNT(*) as totalTechnicians FROM technicians');
+    const [[{ totalStaff }]] = await pool.query('SELECT COUNT(*) as totalStaff FROM staff_members');
     const [[{ totalRepairs }]] = await pool.query('SELECT COUNT(*) as totalRepairs FROM repair_requests');
     const [[{ pendingRepairs }]] = await pool.query("SELECT COUNT(*) as pendingRepairs FROM repair_requests WHERE status != 'delivered' AND status != 'cancelled'");
     const [[{ totalRevenue }]] = await pool.query('SELECT COALESCE(SUM(paid_amount), 0) as totalRevenue FROM invoices');
@@ -34,7 +35,7 @@ router.get('/dashboard', async (req, res) => {
     res.json({
       success: true,
       stats: {
-        totalCustomers, totalStudents, totalAdmins, totalTechnicians,
+        totalCustomers, totalStudents, totalAdmins, totalTechnicians, totalStaff,
         totalRepairs, pendingRepairs, totalRevenue, totalCourses,
         recentRepairs
       }
@@ -73,11 +74,29 @@ router.get('/customers/:id', async (req, res) => {
 
 router.put('/customers/:id', async (req, res) => {
   try {
-    const { name, email, mobile, address, city, state, pincode, status, password } = req.body;
-    let query = 'UPDATE customers SET name=?, email=?, mobile=?, address=?, city=?, state=?, pincode=?, status=?';
-    let params = [name, email, mobile, address, city, state, pincode, status];
-    if (password) { query += ', password=?'; params.push(await bcrypt.hash(password, 10)); }
-    query += ' WHERE id=?'; params.push(req.params.id);
+    const fields = ['name', 'email', 'mobile', 'address', 'city', 'state', 'pincode', 'status'];
+    const updateParts = [];
+    const params = [];
+
+    for (const field of fields) {
+      if (req.body[field] !== undefined) {
+        updateParts.push(`${field} = ?`);
+        params.push(req.body[field]);
+      }
+    }
+
+    if (req.body.password) {
+      updateParts.push('password = ?');
+      params.push(await bcrypt.hash(req.body.password, 10));
+    }
+
+    if (updateParts.length === 0) {
+      return res.json({ success: true, message: 'No changes made' });
+    }
+
+    const query = `UPDATE customers SET ${updateParts.join(', ')} WHERE id = ?`;
+    params.push(req.params.id);
+
     await pool.query(query, params);
     res.json({ success: true, message: 'Customer updated successfully' });
   } catch (err) {
@@ -101,7 +120,9 @@ router.delete('/customers/:id', async (req, res) => {
 router.get('/students', async (req, res) => {
   try {
     const [rows] = await pool.query(
-      'SELECT id, student_id, name, email, mobile, course, batch, status, enrollment_date, created_at FROM students ORDER BY created_at DESC'
+      `SELECT id, student_id, name, email, mobile, course, batch, status, enrollment_date, 
+              profile_photo, fathers_name, address, age, dob, aadhaar_number, gender, created_at 
+       FROM students ORDER BY created_at DESC`
     );
     res.json({ success: true, students: rows });
   } catch (err) {
@@ -132,58 +153,81 @@ router.post('/students', async (req, res) => {
 
     // If course specified, auto-enroll by matching the course name or code
     if (course) {
-      const normalizedCourse = course.trim().toLowerCase();
-      const tokens = normalizedCourse.split(/\s+/).filter(word => word.length > 2);
-      let query = `SELECT id FROM courses
-                   WHERE status = 'active' AND (
-                     title = ?`;
-      const params = [course];
+      try {
+        const normalizedCourse = course.trim().toLowerCase();
+        const tokens = normalizedCourse.split(/\s+/).filter(word => word.length > 2);
+        let query = `SELECT id FROM courses
+                     WHERE status = 'active' AND (
+                       COALESCE(title, course_name) = ?`;
+        const params = [course];
 
-      for (const token of tokens) {
-        query += ' OR LOWER(title) LIKE ?';
-        params.push(`%${token}%`);
-      }
+        for (const token of tokens) {
+          query += ' OR LOWER(COALESCE(title, course_name)) LIKE ?';
+          params.push(`%${token}%`);
+        }
 
-      query += ') LIMIT 1';
+        query += ') LIMIT 1';
 
-      const [courseRows] = await pool.query(query, params);
-      if (courseRows.length > 0) {
-        await pool.query(
-          'INSERT IGNORE INTO course_enrollments (student_id, course_id, enrolled_date, status) VALUES (?, ?, CURDATE(), ?)',
-          [result.insertId, courseRows[0].id, 'enrolled']
-        );
+        const [courseRows] = await pool.query(query, params);
+        if (courseRows && courseRows.length > 0) {
+          await pool.query(
+            'INSERT IGNORE INTO course_enrollments (student_id, course_id, enrolled_date, status) VALUES (?, ?, CURDATE(), ?)',
+            [result.insertId, courseRows[0].id, 'enrolled']
+          );
+        }
+      } catch (enrollErr) {
+        console.warn('Auto-enrollment warning:', enrollErr.message);
       }
     }
 
-    await pool.query(
-      'INSERT INTO activity_logs (user_id, user_role, action, description) VALUES (?, ?, ?, ?)',
-      [req.user.id, 'master', 'CREATE_STUDENT', `Student ${name} (${student_id}) created`]
-    );
+    try {
+      await pool.query(
+        'INSERT INTO activity_logs (user_id, user_role, action, description) VALUES (?, ?, ?, ?)',
+        [req.user.id, 'master', 'CREATE_STUDENT', `Student ${name} (${student_id}) created`]
+      );
+    } catch (logErr) {
+      console.warn('Activity log skip:', logErr.message);
+    }
 
-    res.status(201).json({ success: true, message: 'Student created successfully', studentId: result.insertId });
+    res.status(201).json({ 
+      success: true, 
+      message: 'Student created successfully', 
+      studentId: result.insertId,
+      student: { id: result.insertId, student_id, name, email, mobile, course, batch }
+    });
 
   } catch (err) {
     console.error('Student Create Error:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error: ' + err.message });
   }
 });
 
 router.put('/students/:id', async (req, res) => {
   try {
-    const { name, email, mobile, course, batch, status, password } = req.body;
+    const fields = ['name', 'email', 'mobile', 'course', 'batch', 'status', 'fathers_name', 'address', 'age', 'dob', 'aadhaar_number', 'gender', 'profile_photo'];
+    const updateParts = [];
+    const params = [];
 
-    let updateQuery = 'UPDATE students SET name = ?, email = ?, mobile = ?, course = ?, batch = ?, status = ?';
-    let params = [name, email, mobile, course, batch, status];
-
-    if (password) {
-      updateQuery += ', password = ?';
-      params.push(await bcrypt.hash(password, 10));
+    for (const field of fields) {
+      if (req.body[field] !== undefined) {
+        updateParts.push(`${field} = ?`);
+        params.push(req.body[field]);
+      }
     }
 
-    updateQuery += ' WHERE id = ?';
+    if (req.body.password) {
+      updateParts.push('password = ?');
+      params.push(await bcrypt.hash(req.body.password, 10));
+    }
+
+    if (updateParts.length === 0) {
+      return res.json({ success: true, message: 'No changes made' });
+    }
+
+    const query = `UPDATE students SET ${updateParts.join(', ')} WHERE id = ?`;
     params.push(req.params.id);
 
-    await pool.query(updateQuery, params);
+    await pool.query(query, params);
 
     await pool.query(
       'INSERT INTO activity_logs (user_id, user_role, action, description) VALUES (?, ?, ?, ?)',
@@ -252,11 +296,29 @@ router.post('/admins', async (req, res) => {
 
 router.put('/admins/:id', async (req, res) => {
   try {
-    const { name, mobile, alternate_mobile, status, aadhar_number, bank_account, bank_ifsc, commission_type, commission_amount, password } = req.body;
-    let query = 'UPDATE admins SET name=?, mobile=?, alternate_mobile=?, status=?, aadhar_number=?, bank_account=?, bank_ifsc=?, commission_type=?, commission_amount=?';
-    let params = [name, mobile, alternate_mobile || null, status, aadhar_number || null, bank_account || null, bank_ifsc || null, commission_type || null, commission_amount || 0];
-    if (password) { query += ', password=?'; params.push(await bcrypt.hash(password, 10)); }
-    query += ' WHERE id=?'; params.push(req.params.id);
+    const fields = ['name', 'mobile', 'alternate_mobile', 'status', 'aadhar_number', 'bank_account', 'bank_ifsc', 'commission_type', 'commission_amount'];
+    const updateParts = [];
+    const params = [];
+
+    for (const field of fields) {
+      if (req.body[field] !== undefined) {
+        updateParts.push(`${field} = ?`);
+        params.push(req.body[field]);
+      }
+    }
+
+    if (req.body.password) {
+      updateParts.push('password = ?');
+      params.push(await bcrypt.hash(req.body.password, 10));
+    }
+
+    if (updateParts.length === 0) {
+      return res.json({ success: true, message: 'No changes made' });
+    }
+
+    const query = `UPDATE admins SET ${updateParts.join(', ')} WHERE id = ?`;
+    params.push(req.params.id);
+
     await pool.query(query, params);
     res.json({ success: true, message: 'Admin updated successfully' });
   } catch (err) {
@@ -315,11 +377,29 @@ router.post('/technicians', async (req, res) => {
 
 router.put('/technicians/:id', async (req, res) => {
   try {
-    const { name, mobile, specialization, experience, commission_percent, status, password } = req.body;
-    let query = 'UPDATE technicians SET name = ?, mobile = ?, specialization = ?, experience = ?, commission_percent = ?, status = ?';
-    let params = [name, mobile, specialization, experience, commission_percent, status];
-    if (password) { query += ', password = ?'; params.push(await bcrypt.hash(password, 10)); }
-    query += ' WHERE id = ?'; params.push(req.params.id);
+    const fields = ['name', 'mobile', 'specialization', 'experience', 'commission_percent', 'status'];
+    const updateParts = [];
+    const params = [];
+
+    for (const field of fields) {
+      if (req.body[field] !== undefined) {
+        updateParts.push(`${field} = ?`);
+        params.push(req.body[field]);
+      }
+    }
+
+    if (req.body.password) {
+      updateParts.push('password = ?');
+      params.push(await bcrypt.hash(req.body.password, 10));
+    }
+
+    if (updateParts.length === 0) {
+      return res.json({ success: true, message: 'No changes made' });
+    }
+
+    const query = `UPDATE technicians SET ${updateParts.join(', ')} WHERE id = ?`;
+    params.push(req.params.id);
+
     await pool.query(query, params);
     res.json({ success: true, message: 'Technician updated successfully' });
   } catch (err) {
@@ -411,17 +491,17 @@ router.get('/reports/admin-performance', async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT a.id, a.name, a.email, a.mobile, a.status, a.last_login,
-              COUNT(DISTINCT rr.id) as total_repairs_managed,
+              COUNT(DISTINCT i.id) as total_repairs_managed,
               COALESCE(SUM(i.paid_amount), 0) as revenue_generated,
               a.created_at
        FROM admins a
-       LEFT JOIN repair_requests rr ON a.id = rr.assigned_admin
-       LEFT JOIN invoices i ON rr.id = i.repair_id
+       LEFT JOIN invoices i ON a.id = i.created_by
        GROUP BY a.id
        ORDER BY revenue_generated DESC`
     );
     res.json({ success: true, report: rows, generatedAt: new Date().toISOString() });
   } catch (err) {
+    console.error('Admin Performance Report Error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -605,6 +685,407 @@ router.delete('/sliders/:id', async (req, res) => {
   try {
     await pool.query('DELETE FROM slider_images WHERE id = ?', [req.params.id]);
     res.json({ success: true, message: 'Slider deleted' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// =====================================================
+// STAFF MANAGEMENT (Master Control Only)
+// =====================================================
+router.get('/staff', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT id, staff_id, name, email, mobile, status, last_login, created_at FROM staff_members ORDER BY created_at DESC'
+    );
+    res.json({ success: true, staff: rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+router.post('/staff', async (req, res) => {
+  try {
+    const { staff_id, name, password, email, mobile } = req.body;
+    if (!staff_id || !name || !password) {
+      return res.status(400).json({ success: false, message: 'Staff ID, Name and Password are required' });
+    }
+
+    const [existing] = await pool.query('SELECT id FROM staff_members WHERE staff_id = ?', [staff_id]);
+    if (existing.length > 0) {
+      return res.status(409).json({ success: false, message: 'Staff ID already exists' });
+    }
+
+    if (email) {
+      const [existingEmail] = await pool.query('SELECT id FROM staff_members WHERE email = ?', [email]);
+      if (existingEmail.length > 0) {
+        return res.status(409).json({ success: false, message: 'Staff email already exists' });
+      }
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await pool.query(
+      'INSERT INTO staff_members (staff_id, name, password, email, mobile, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+      [staff_id, name, hashedPassword, email || null, mobile || null, req.user.id]
+    );
+
+    res.status(201).json({ success: true, message: 'Staff member created successfully' });
+  } catch (err) {
+    console.error('Staff Create Error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+router.put('/staff/:id', async (req, res) => {
+  try {
+    const fields = ['name', 'email', 'mobile', 'status'];
+    const updateParts = [];
+    const params = [];
+
+    for (const field of fields) {
+      if (req.body[field] !== undefined) {
+        updateParts.push(`${field} = ?`);
+        params.push(req.body[field]);
+      }
+    }
+
+    if (req.body.password) {
+      updateParts.push('password = ?');
+      params.push(await bcrypt.hash(req.body.password, 10));
+    }
+
+    if (updateParts.length === 0) {
+      return res.json({ success: true, message: 'No changes made' });
+    }
+
+    const query = `UPDATE staff_members SET ${updateParts.join(', ')} WHERE id = ?`;
+    params.push(req.params.id);
+
+    await pool.query(query, params);
+    res.json({ success: true, message: 'Staff member updated successfully' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+router.delete('/staff/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM staff_members WHERE id = ?', [req.params.id]);
+    res.json({ success: true, message: 'Staff member deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// =====================================================
+// MASTER: CERTIFICATE MANAGEMENT
+// =====================================================
+
+// Upload Certificate Template
+router.post('/certificate/template', uploadCertificate.fields([
+  { name: 'template_file', maxCount: 1 },
+  { name: 'institute_logo', maxCount: 1 },
+  { name: 'institute_signature', maxCount: 1 }
+]), async (req, res) => {
+  try {
+    const templatePath = req.files['template_file'] ? '/uploads/certificates/' + req.files['template_file'][0].filename : null;
+    const logoPath = req.files['institute_logo'] ? '/uploads/certificates/' + req.files['institute_logo'][0].filename : null;
+    const signaturePath = req.files['institute_signature'] ? '/uploads/certificates/' + req.files['institute_signature'][0].filename : null;
+    
+    // Check if there is an active template
+    const [existing] = await pool.query('SELECT id FROM certificate_templates WHERE is_active = 1');
+    
+    if (existing.length > 0) {
+      // Update existing template
+      const updateFields = [];
+      const params = [];
+      if (templatePath) { updateFields.push('template_file = ?'); params.push(templatePath); }
+      if (logoPath) { updateFields.push('institute_logo = ?'); params.push(logoPath); }
+      if (signaturePath) { updateFields.push('institute_signature = ?'); params.push(signaturePath); }
+      
+      if (updateFields.length > 0) {
+        params.push(existing[0].id);
+        await pool.query(`UPDATE certificate_templates SET ${updateFields.join(', ')} WHERE id = ?`, params);
+      }
+    } else {
+      // Create new template record
+      if (!templatePath) {
+        return res.status(400).json({ success: false, message: 'Template image file is required' });
+      }
+      await pool.query(
+        'INSERT INTO certificate_templates (template_file, institute_logo, institute_signature, is_active) VALUES (?, ?, ?, 1)',
+        [templatePath, logoPath, signaturePath]
+      );
+    }
+    
+    res.json({ success: true, message: 'Certificate template uploaded successfully' });
+  } catch (err) {
+    console.error('Template upload error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Get active templates
+router.get('/certificate/templates', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM certificate_templates WHERE is_active = 1 LIMIT 1');
+    res.json({ success: true, template: rows[0] || null });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Get pending certificate requests
+router.get('/certificate/pending', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT gc.*, s.name as student_name, s.student_id as student_code, c.title as course_name 
+       FROM generated_certificates gc 
+       JOIN students s ON gc.student_id = s.id 
+       JOIN courses c ON gc.course_id = c.id 
+       ORDER BY gc.created_at DESC`
+    );
+    res.json({ success: true, certificates: rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Approve / Reject certificate
+router.put('/certificate/:id/approve', async (req, res) => {
+  try {
+    const certId = req.params.id;
+    const { status } = req.body; // 'approved' or 'rejected'
+    
+    if (!['approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid status' });
+    }
+    
+    await pool.query(
+      'UPDATE generated_certificates SET status = ?, issue_date = CURDATE() WHERE id = ?',
+      [status, certId]
+    );
+    
+    // Notify Student
+    const [[cert]] = await pool.query('SELECT student_id, course_id, certificate_number FROM generated_certificates WHERE id = ?', [certId]);
+    const [[course]] = await pool.query('SELECT title FROM courses WHERE id = ?', [cert.course_id]);
+    
+    if (status === 'approved') {
+      await pool.query(
+        'INSERT INTO notifications (user_id, user_role, title, message, type) VALUES (?, ?, ?, ?, ?)',
+        [cert.student_id, 'student', 'Certificate Available', `Your certificate for "${course.title}" is now available for download.`, 'system']
+      );
+    }
+    
+    res.json({ success: true, message: `Certificate status updated to ${status}` });
+  } catch (err) {
+    console.error('Approve certificate error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Reissue certificate
+router.post('/certificate/:id/reissue', async (req, res) => {
+  try {
+    const certId = req.params.id;
+    
+    const [[cert]] = await pool.query('SELECT * FROM generated_certificates WHERE id = ?', [certId]);
+    if (!cert) return res.status(404).json({ success: false, message: 'Certificate not found' });
+    
+    const newCertNumber = `SRM-CERT-${Date.now().toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`;
+    
+    await pool.query(
+      'UPDATE generated_certificates SET certificate_number = ?, issue_date = CURDATE(), status = "approved" WHERE id = ?',
+      [newCertNumber, certId]
+    );
+    
+    // Notify Student
+    const [[course]] = await pool.query('SELECT title FROM courses WHERE id = ?', [cert.course_id]);
+    await pool.query(
+      'INSERT INTO notifications (user_id, user_role, title, message, type) VALUES (?, ?, ?, ?, ?)',
+      [cert.student_id, 'student', 'Certificate Reissued', `Your certificate for "${course.title}" has been reissued with Certificate ID: ${newCertNumber}.`, 'system']
+    );
+    
+    res.json({ success: true, message: 'Certificate reissued successfully', certificateNumber: newCertNumber });
+  } catch (err) {
+    console.error('Reissue certificate error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// =====================================================
+// MASTER: SUPPORT TICKETS MANAGEMENT
+// =====================================================
+
+// List all support tickets
+router.get('/support/tickets', async (req, res) => {
+  try {
+    const [tickets] = await pool.query(
+      `SELECT t.*, s.name as student_name, s.student_id as student_code 
+       FROM support_tickets t 
+       JOIN students s ON t.student_id = s.id 
+       ORDER BY t.updated_at DESC`
+    );
+    res.json({ success: true, tickets });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// View support ticket detail and thread
+router.get('/support/tickets/:id', async (req, res) => {
+  try {
+    const ticketId = req.params.id;
+    const [[ticket]] = await pool.query(
+      `SELECT t.*, s.name as student_name, s.student_id as student_code 
+       FROM support_tickets t 
+       JOIN students s ON t.student_id = s.id 
+       WHERE t.id = ?`,
+      [ticketId]
+    );
+    if (!ticket) return res.status(404).json({ success: false, message: 'Ticket not found' });
+    
+    const [messages] = await pool.query(
+      'SELECT * FROM support_messages WHERE ticket_id = ? ORDER BY created_at ASC',
+      [ticketId]
+    );
+    
+    res.json({ success: true, ticket, messages });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Reply to support ticket
+router.post('/support/tickets/:id/reply', uploadProfile.single('screenshot'), async (req, res) => {
+  try {
+    const ticketId = req.params.id;
+    const { message } = req.body;
+    
+    if (!message) {
+      return res.status(400).json({ success: false, message: 'Message is required' });
+    }
+    
+    const [[ticket]] = await pool.query('SELECT * FROM support_tickets WHERE id = ?', [ticketId]);
+    if (!ticket) return res.status(404).json({ success: false, message: 'Ticket not found' });
+    
+    let attachmentPath = null;
+    if (req.file) {
+      attachmentPath = '/uploads/profiles/' + req.file.filename;
+    }
+    
+    await pool.query(
+      'INSERT INTO support_messages (ticket_id, sender_role, sender_id, message, attachment_path) VALUES (?, ?, ?, ?, ?)',
+      [ticketId, 'master', req.user.id, message, attachmentPath]
+    );
+    
+    await pool.query(
+      'UPDATE support_tickets SET updated_at = NOW() WHERE id = ?',
+      [ticketId]
+    );
+    
+    // Notify Student
+    await pool.query(
+      'INSERT INTO notifications (user_id, user_role, title, message, type) VALUES (?, ?, ?, ?, ?)',
+      [ticket.student_id, 'student', 'Reply from Master', `Master replied to your support ticket: "${ticket.subject}"`, 'system']
+    );
+    
+    res.json({ success: true, message: 'Reply sent successfully' });
+  } catch (err) {
+    console.error('Master reply ticket error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Change ticket status
+router.put('/support/tickets/:id/status', async (req, res) => {
+  try {
+    const ticketId = req.params.id;
+    const { status } = req.body; // 'open', 'in_progress', 'resolved'
+    
+    if (!['open', 'in_progress', 'resolved'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid status' });
+    }
+    
+    await pool.query(
+      'UPDATE support_tickets SET status = ? WHERE id = ?',
+      [status, ticketId]
+    );
+    
+    res.json({ success: true, message: `Ticket status updated to ${status}` });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// =====================================================
+// MASTER: ANNOUNCEMENTS BROADCAST
+// =====================================================
+
+// Create Announcement
+router.post('/announcements', async (req, res) => {
+  try {
+    const { title, content, target_type, studentIds } = req.body;
+    
+    if (!title || !content) {
+      return res.status(400).json({ success: false, message: 'Title and content are required' });
+    }
+    
+    const [result] = await pool.query(
+      'INSERT INTO announcements (title, content, target_type, created_by) VALUES (?, ?, ?, ?)',
+      [title, content, target_type || 'all', req.user.id]
+    );
+    const announcementId = result.insertId;
+    
+    if (target_type === 'selected' && Array.isArray(studentIds)) {
+      for (const studentId of studentIds) {
+        await pool.query(
+          'INSERT INTO announcement_recipients (announcement_id, student_id) VALUES (?, ?)',
+          [announcementId, studentId]
+        );
+        
+        // Notify Student
+        await pool.query(
+          'INSERT INTO notifications (user_id, user_role, title, message, type) VALUES (?, ?, ?, ?, ?)',
+          [studentId, 'student', 'New Announcement', `Announcement: ${title}`, 'system']
+        );
+      }
+    } else {
+      // Notify All Students
+      await pool.query(
+        'INSERT INTO notifications (user_role, title, message, type) VALUES (?, ?, ?, ?)',
+        ['student', 'New Announcement', `Announcement: ${title}`, 'system']
+      );
+    }
+    
+    res.status(201).json({ success: true, message: 'Announcement created successfully', announcementId });
+  } catch (err) {
+    console.error('Announcement create error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// View all Announcements
+router.get('/announcements', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT a.*, mu.name as creator_name 
+       FROM announcements a 
+       JOIN master_users mu ON a.created_by = mu.id 
+       ORDER BY a.created_at DESC`
+    );
+    res.json({ success: true, announcements: rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Reset student device binding
+router.put('/students/:id/reset-device', async (req, res) => {
+  try {
+    const studentId = req.params.id;
+    await pool.query('UPDATE students SET android_device_id = NULL WHERE id = ?', [studentId]);
+    res.json({ success: true, message: 'Device binding reset successfully' });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error' });
   }

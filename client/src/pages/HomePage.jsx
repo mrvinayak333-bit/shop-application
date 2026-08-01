@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Search, Smartphone, Shield, Clock, Wrench, Phone, MessageCircle, MapPin, Mail, ChevronRight, Star, CheckCircle } from 'lucide-react';
+import { Search, Smartphone, Shield, Clock, Wrench, Phone, MessageCircle, MapPin, Mail, ChevronRight, Star, CheckCircle, ShoppingCart } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import api from '../lib/api';
 import Navbar from '../components/Navbar';
@@ -12,7 +12,25 @@ export default function HomePage() {
   const [mobile, setMobile] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [products, setProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(true);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchFeaturedProducts = async () => {
+      try {
+        const res = await api.get('/accessories/products');
+        if (res.success) {
+          setProducts((res.products || []).slice(0, 8)); // Top 8 products
+        }
+      } catch (err) {
+        console.error('Error fetching featured products:', err);
+      } finally {
+        setProductsLoading(false);
+      }
+    };
+    fetchFeaturedProducts();
+  }, []);
 
   const handleTrack = (e) => {
     e.preventDefault();
@@ -240,6 +258,111 @@ export default function HomePage() {
                 <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-emerald-500" /> Virus removal</li>
               </ul>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Accessories Section */}
+      <section className="py-16 px-4 bg-white border-t border-gray-100">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex justify-between items-end mb-10">
+            <div>
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">Featured Accessories</h2>
+              <p className="text-gray-600">Genuine mobile accessories, chargers, covers and more</p>
+            </div>
+            <Link to="/accessories" className="text-emerald-600 hover:text-emerald-700 font-semibold flex items-center gap-1.5 transition">
+              View All Store <ChevronRight className="w-5 h-5" />
+            </Link>
+          </div>
+
+          {productsLoading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+            </div>
+          ) : products.length === 0 ? (
+            <p className="text-center text-gray-500 py-12">No products available in the store right now.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+              {products.map(p => {
+                const discount = p.discount_price ? Math.round(((p.price - p.discount_price) / p.price) * 100) : 0;
+                const activePrice = p.discount_price !== null ? p.discount_price : p.price;
+                const isOutOfStock = p.stock <= 0;
+
+                return (
+                  <div key={p.id} className="bg-white rounded-2xl border shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden group">
+                    <div className="aspect-square bg-gray-50 relative overflow-hidden flex items-center justify-center border-b">
+                      {p.image_url ? (
+                        <img src={p.image_url} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      ) : (
+                        <span className="text-gray-300 text-4xl">📱</span>
+                      )}
+                      {discount > 0 && (
+                        <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full">
+                          -{discount}% OFF
+                        </span>
+                      )}
+                      {isOutOfStock && (
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                          <span className="bg-red-600 text-white text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">Out of Stock</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-4 flex-1 flex flex-col justify-between space-y-2">
+                      <div>
+                        <div className="flex justify-between items-center text-[10px] text-gray-400 font-bold uppercase mb-1">
+                          <span>{p.category}</span>
+                          <span>{p.brand}</span>
+                        </div>
+                        <h3 className="font-bold text-gray-800 text-sm group-hover:text-emerald-700 transition-colors line-clamp-2 h-10">{p.name}</h3>
+                      </div>
+
+                      <div className="pt-2 border-t border-gray-50 flex items-center justify-between">
+                        <div className="flex flex-col">
+                          {p.discount_price !== null ? (
+                            <>
+                              <span className="text-emerald-600 font-bold text-base">₹{p.discount_price}</span>
+                              <span className="text-gray-400 line-through text-xs">₹{p.price}</span>
+                            </>
+                          ) : (
+                            <span className="text-gray-900 font-bold text-base">₹{p.price}</span>
+                          )}
+                        </div>
+                        <button 
+                          onClick={() => {
+                            if (!isAuthenticated) {
+                              showToast('Please login to buy accessories', 'info');
+                              navigate('/login/customer');
+                            } else if (user?.role !== 'customer') {
+                              showToast('Only customers can purchase accessories.', 'error');
+                            } else {
+                              navigate('/accessories');
+                            }
+                          }}
+                          className="bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white p-2 rounded-xl transition duration-300"
+                        >
+                          <ShoppingCart className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Book Repair CTA at bottom of Featured Accessories */}
+          <div className="mt-12 text-center bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 rounded-2xl p-8 border border-emerald-100/60 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="text-left">
+              <h3 className="text-xl font-bold text-gray-900 mb-1">Need your device repaired by experts?</h3>
+              <p className="text-sm text-gray-600">Get genuine parts, 100% warranty, and real-time live status tracking for your mobile or laptop repair.</p>
+            </div>
+            <Link 
+              to="/repair/register" 
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3.5 rounded-xl font-bold transition flex items-center gap-2 shadow-lg shadow-emerald-600/20 whitespace-nowrap text-sm"
+            >
+              <Wrench className="w-5 h-5" /> Book Repair Now
+            </Link>
           </div>
         </div>
       </section>

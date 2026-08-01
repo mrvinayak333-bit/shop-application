@@ -95,6 +95,12 @@ export default function TechnicianDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate('/dashboard/salary')}
+              className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 px-4 rounded-xl flex items-center gap-2 transition shadow-sm text-sm"
+            >
+              💼 Salary Wallet
+            </button>
             <div className="text-right">
               <p className="text-sm text-gray-500">Today's Jobs</p>
               <p className="text-xl font-bold text-gray-900">{stats.completedToday || 0}</p>

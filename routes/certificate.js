@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
+const QRCode = require('qrcode');
 const { authenticateToken, authorize } = require('../middleware/auth');
 const { uploadCertificate } = require('../middleware/upload');
 
@@ -56,6 +57,73 @@ router.delete('/manage/:id', async (req, res) => {
     await pool.query('DELETE FROM certificates WHERE id = ?', [req.params.id]);
     res.json({ success: true, message: 'Certificate deleted' });
   } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// =====================================================
+// CERTIFICATE: DYNAMIC PRINT DETAILS
+// =====================================================
+router.get('/print/:id', authenticateToken, async (req, res) => {
+  try {
+    const certId = req.params.id;
+    // Check if certificate exists
+    const [[cert]] = await pool.query(
+      `SELECT gc.*, s.name as student_name, c.title as course_name 
+       FROM generated_certificates gc
+       JOIN students s ON gc.student_id = s.id
+       JOIN courses c ON gc.course_id = c.id
+       WHERE gc.id = ?`,
+      [certId]
+    );
+    
+    if (!cert) {
+      return res.status(404).json({ success: false, message: 'Certificate not found' });
+    }
+    
+    // Get active template details
+    const [[template]] = await pool.query(
+      'SELECT template_file, institute_logo, institute_signature FROM certificate_templates WHERE is_active = 1 LIMIT 1'
+    );
+    
+    // Generate QR Code data URL
+    const verifyUrl = `${req.protocol}://${req.get('host')}/verify-certificate/${cert.certificate_number}`;
+    const qrCodeDataUrl = await QRCode.toDataURL(verifyUrl);
+    
+    res.json({
+      success: true,
+      certificate: cert,
+      template: template || null,
+      qrCodeDataUrl
+    });
+  } catch (err) {
+    console.error('Print certificate error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// =====================================================
+// CERTIFICATE: PUBLIC VERIFICATION
+// =====================================================
+router.get('/verify/:certNumber', async (req, res) => {
+  try {
+    const certNumber = req.params.certNumber;
+    const [[cert]] = await pool.query(
+      `SELECT gc.id, gc.certificate_number, gc.issue_date, gc.status, s.name as student_name, c.title as course_name 
+       FROM generated_certificates gc
+       JOIN students s ON gc.student_id = s.id
+       JOIN courses c ON gc.course_id = c.id
+       WHERE gc.certificate_number = ? AND gc.status = 'approved'`,
+      [certNumber]
+    );
+    
+    if (!cert) {
+      return res.status(404).json({ success: false, message: 'Certificate not found or not approved' });
+    }
+    
+    res.json({ success: true, certificate: cert });
+  } catch (err) {
+    console.error('Verify certificate error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });

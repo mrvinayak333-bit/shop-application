@@ -25,9 +25,15 @@ export function AuthProvider({ children }) {
     let loginData = { password, role };
     
     if (role === 'customer' && mobileOrStudentId) {
-      loginData.mobile = mobileOrStudentId;
+      if (mobileOrStudentId.includes('@')) {
+        loginData.email = mobileOrStudentId;
+      } else {
+        loginData.mobile = mobileOrStudentId;
+      }
     } else if (role === 'student' && mobileOrStudentId) {
       loginData.studentId = mobileOrStudentId;
+    } else if (role === 'staff' && mobileOrStudentId) {
+      loginData.staffId = mobileOrStudentId;
     } else if (email) {
       loginData.email = email;
     }

@@ -377,7 +377,7 @@ export default function AdminRepairControl() {
     setPickupDetails(null);
   };
 
-  if (!isAuthenticated || user?.role !== 'admin') return null;
+  if (!isAuthenticated || !['admin', 'staff'].includes(user?.role)) return null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -386,7 +386,9 @@ export default function AdminRepairControl() {
       <main className="max-w-5xl mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Admin Repair Control</h1>
+            <h1 className="text-2xl font-bold text-gray-900">
+              {user?.role === 'staff' ? 'Staff Repair Control' : 'Admin Repair Control'}
+            </h1>
             <p className="text-gray-500 text-sm">Search, inspect, verify and transfer devices</p>
           </div>
           <div className="flex gap-2">

@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { useNotifications } from '../lib/NotificationContext';
-import { Smartphone, LogOut, User, Menu, X, Home, Wrench, Search, Users, BookOpen, Bell, Volume2, VolumeX } from 'lucide-react';
+import { Smartphone, LogOut, User, Menu, X, Home, Wrench, Search, Users, BookOpen, Bell, Volume2, VolumeX, ShoppingCart, Landmark, Wallet } from 'lucide-react';
 import { useState } from 'react';
 
 export default function Navbar() {
@@ -45,6 +45,7 @@ export default function Navbar() {
   const navLinks = [
     { to: '/', label: 'Home', icon: Home },
     { to: '/#services', label: 'Services', icon: Wrench },
+    { to: '/accessories', label: '🛒 Buy Accessories', icon: ShoppingCart },
     { to: '/repair/register', label: 'Repair Booking', icon: Wrench },
     { to: '/#tracking', label: 'Live Tracking', icon: Search },
   ];
@@ -63,7 +64,7 @@ export default function Navbar() {
             <Smartphone className="w-8 h-8 text-emerald-600" />
             <span className="text-lg font-bold text-gray-900">SHREE RAAM MOBILE</span>
           </Link>
-
+ 
           {/* Desktop Menu */}
           <div className="hidden lg:flex items-center gap-1">
             {navLinks.map((link, i) => (
@@ -71,6 +72,39 @@ export default function Navbar() {
                 {link.label}
               </Link>
             ))}
+
+            {isAuthenticated && (
+              <Link 
+                to={
+                  user?.role === 'master' ? '/dashboard/master' :
+                  (user?.role === 'admin' || user?.role === 'staff') ? '/dashboard/admin' :
+                  user?.role === 'technician' ? '/technician' :
+                  user?.role === 'student' ? '/dashboard/student' :
+                  '/dashboard/customer'
+                } 
+                className="px-3 py-2 rounded-lg text-sm font-bold text-emerald-700 hover:bg-emerald-50 transition"
+              >
+                Dashboard
+              </Link>
+            )}
+
+            {isAuthenticated && ['master', 'admin', 'staff'].includes(user?.role) && (
+              <Link 
+                to="/dashboard/collection"
+                className="px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition"
+              >
+                Payment Collection
+              </Link>
+            )}
+
+            {isAuthenticated && ['admin', 'staff', 'technician'].includes(user?.role) && (
+              <Link 
+                to="/dashboard/salary"
+                className="px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition"
+              >
+                Salary Wallet
+              </Link>
+            )}
 
             {isAuthenticated && (user?.role === 'master' || user?.role === 'student') && (
               <Link to="/enrolled-courses" className="px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition">
@@ -200,6 +234,43 @@ export default function Navbar() {
                 <link.icon className="w-5 h-5" /> {link.label}
               </Link>
             ))}
+
+            {isAuthenticated && (
+              <Link 
+                to={
+                  user?.role === 'master' ? '/dashboard/master' :
+                  (user?.role === 'admin' || user?.role === 'staff') ? '/dashboard/admin' :
+                  user?.role === 'technician' ? '/technician' :
+                  user?.role === 'student' ? '/dashboard/student' :
+                  '/dashboard/customer'
+                }
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center gap-3 px-3 py-3 rounded-lg text-emerald-700 font-bold bg-emerald-50 hover:bg-emerald-100"
+              >
+                <Home className="w-5 h-5" /> Dashboard
+              </Link>
+            )}
+
+            {isAuthenticated && ['master', 'admin', 'staff'].includes(user?.role) && (
+              <Link 
+                to="/dashboard/collection"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 hover:bg-emerald-50 hover:text-emerald-700"
+              >
+                <Landmark className="w-5 h-5" /> Payment Collection
+              </Link>
+            )}
+
+            {isAuthenticated && ['admin', 'staff', 'technician'].includes(user?.role) && (
+              <Link 
+                to="/dashboard/salary"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 hover:bg-emerald-50 hover:text-emerald-700"
+              >
+                <Wallet className="w-5 h-5" /> Salary Wallet
+              </Link>
+            )}
+            
             <hr className="my-2" />
             <p className="px-3 text-xs text-gray-400 uppercase font-semibold">Portals</p>
             {staffLinks.map((link, i) => (

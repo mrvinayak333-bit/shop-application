@@ -9,10 +9,12 @@ const uploadDirs = [
   'uploads/courses/pdf',
   'uploads/courses/images',
   'uploads/courses/documents',
+  'uploads/courses/videos',
   'uploads/logos',
   'uploads/invoices',
   'uploads/profiles',
-  'uploads/repair_photos'
+  'uploads/repair_photos',
+  'uploads/accessories'
 ];
 
 uploadDirs.forEach(dir => {
@@ -47,6 +49,7 @@ const courseStorage = multer.diskStorage({
     const ext = path.extname(file.originalname).toLowerCase();
     if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) subDir = 'images';
     else if (ext === '.pdf') subDir = 'pdf';
+    else if (['.mp4', '.webm', '.ogg', '.mov', '.3gp', '.mkv'].includes(ext)) subDir = 'videos';
     cb(null, path.join(__dirname, '..', `uploads/courses/${subDir}`));
   },
   filename: (req, file, cb) => {
@@ -84,13 +87,33 @@ const certificateFilter = (req, file, cb) => {
 };
 
 const documentFilter = (req, file, cb) => {
-  const allowed = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+  const allowed = [
+    'application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
     'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'text/plain', 'application/zip'];
+    'text/plain', 'application/zip',
+    'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime', 'video/3gpp', 'video/x-matroska'
+  ];
   if (allowed.includes(file.mimetype)) cb(null, true);
-  else cb(new Error('File type not allowed'), false);
+  else cb(new Error('File type not allowed. Please upload images, PDFs, office documents, zip, or video files (MP4, WebM, etc.).'), false);
 };
+
+const accessoryStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, path.join(__dirname, '..', 'uploads/accessories')),
+  filename: (req, file, cb) => {
+    const uniqueName = `accessory_${Date.now()}_${Math.round(Math.random() * 1E9)}${path.extname(file.originalname)}`;
+    cb(null, uniqueName);
+  }
+});
+
+// Profile Photo Upload Storage
+const profileStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, path.join(__dirname, '..', 'uploads/profiles')),
+  filename: (req, file, cb) => {
+    const uniqueName = `profile_${Date.now()}_${Math.round(Math.random() * 1E9)}${path.extname(file.originalname)}`;
+    cb(null, uniqueName);
+  }
+});
 
 const maxSize = parseInt(process.env.MAX_FILE_SIZE) || 10485760; // 10MB
 
@@ -99,5 +122,7 @@ module.exports = {
   uploadCertificate: multer({ storage: certificateStorage, fileFilter: certificateFilter, limits: { fileSize: maxSize } }),
   uploadCourseMaterial: multer({ storage: courseStorage, fileFilter: documentFilter, limits: { fileSize: maxSize } }),
   uploadLogo: multer({ storage: logoStorage, fileFilter: imageFilter, limits: { fileSize: 5 * 1024 * 1024 } }),
-  uploadRepairPhoto: multer({ storage: repairPhotoStorage, fileFilter: imageFilter, limits: { fileSize: maxSize } })
+  uploadRepairPhoto: multer({ storage: repairPhotoStorage, fileFilter: imageFilter, limits: { fileSize: maxSize } }),
+  uploadAccessory: multer({ storage: accessoryStorage, fileFilter: imageFilter, limits: { fileSize: maxSize } }),
+  uploadProfile: multer({ storage: profileStorage, fileFilter: imageFilter, limits: { fileSize: maxSize } })
 };

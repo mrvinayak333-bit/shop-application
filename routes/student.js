@@ -67,25 +67,120 @@ router.get('/dashboard', async (req, res) => {
       };
     });
 
-    // Get generated certificates
+    // Get certificates & requests for student (UNION to deduplicate)
     const [certificates] = await pool.query(
-      `SELECT gc.id, gc.certificate_number, gc.issue_date, gc.status, gc.pdf_path, c.title as course_name 
-       FROM generated_certificates gc 
-       JOIN courses c ON gc.course_id = c.id 
-       WHERE gc.student_id = ?`,
-      [studentId]
+      `SELECT 
+         c.id,
+         c.certificate_id,
+         c.certificate_id as certificate_number,
+         c.course_name,
+         c.issue_date,
+         c.certificate_status as status,
+         c.grade,
+         c.verification_code
+       FROM certificates c
+       WHERE c.student_id = ?
+
+       UNION
+
+       SELECT 
+         gc.id + 1000000 as id,
+         gc.certificate_number as certificate_id,
+         gc.certificate_number,
+         COALESCE(co.title, 'Mobile Repairing & Technical Training Course') as course_name,
+         gc.issue_date,
+         IF(gc.status = 'approved', 'Issued', gc.status) as status,
+         'A++' as grade,
+         NULL as verification_code
+       FROM generated_certificates gc
+       LEFT JOIN courses co ON gc.course_id = co.id
+       WHERE gc.student_id = ? 
+         AND NOT EXISTS (
+           SELECT 1 FROM certificates c2 
+           WHERE c2.student_id = gc.student_id AND c2.certificate_id = gc.certificate_number
+         )
+       ORDER BY issue_date DESC`,
+      [studentId, studentId]
+    );
+
+    // Get all PDF study materials for the student's enrolled courses
+    const [pdfMaterials] = await pool.query(
+      `SELECT 
+          csi.id,
+          csi.title,
+          csi.file_path,
+          csi.description,
+          csi.duration_minutes,
+          csi.material_type,
+          c.id AS course_id,
+          c.title AS course_name,
+          cs.title AS topic_name,
+          COALESCE(sip.completed, 0) AS completed
+       FROM course_subject_items csi
+       JOIN course_subjects cs ON csi.subject_id = cs.id
+       JOIN courses c ON cs.course_id = c.id
+       JOIN course_enrollments ce ON ce.course_id = c.id
+       LEFT JOIN student_item_progress sip ON sip.item_id = csi.id AND sip.student_id = ?
+       WHERE ce.student_id = ? 
+         AND (csi.material_type = 'pdf' OR csi.type = 'pdf' OR csi.file_path LIKE '%.pdf')
+       ORDER BY c.id, cs.display_order, csi.display_order`,
+      [studentId, studentId]
     );
 
     res.json({
       success: true,
       student,
       courses: processedEnrollments,
-      certificates
+      certificates,
+      pdfMaterials
     });
 
   } catch (err) {
     console.error('Student Dashboard Error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// =====================================================
+// GET PDF BOOK DETAILS FOR IN-APP READER
+// =====================================================
+router.get('/pdf-reader/:bookId', async (req, res) => {
+  try {
+    const studentId = req.user.id;
+    const { bookId } = req.params;
+
+    const [[book]] = await pool.query(
+      `SELECT 
+          csi.id,
+          csi.title,
+          csi.file_path,
+          csi.description,
+          csi.duration_minutes,
+          csi.material_type,
+          c.id AS course_id,
+          c.title AS course_name,
+          cs.title AS topic_name,
+          COALESCE(sip.completed, 0) AS completed
+       FROM course_subject_items csi
+       JOIN course_subjects cs ON csi.subject_id = cs.id
+       JOIN courses c ON cs.course_id = c.id
+       JOIN course_enrollments ce ON ce.course_id = c.id
+       LEFT JOIN student_item_progress sip ON sip.item_id = csi.id AND sip.student_id = ?
+       WHERE csi.id = ? AND ce.student_id = ?`,
+      [studentId, bookId, studentId]
+    );
+
+    if (!book) {
+      return res.status(404).json({ success: false, message: 'PDF book not found or you are not enrolled in this course.' });
+    }
+
+    res.json({
+      success: true,
+      book
+    });
+  } catch (err) {
+    console.error('PDF Reader fetch error:', err);
+    res.status(500).json({ success: false, message: 'Server error loading PDF details.' });
   }
 });
 
@@ -252,6 +347,142 @@ router.post('/course-item/:itemId/complete', async (req, res) => {
   } catch (err) {
     console.error('Complete subject item error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// =====================================================
+// STUDENT: DIRECT CERTIFICATE REQUEST / GENERATION
+// =====================================================
+router.post('/request-certificate', async (req, res) => {
+  try {
+    const studentId = req.user.id;
+    const { course_id } = req.body;
+
+    const [[student]] = await pool.query('SELECT name, student_id FROM students WHERE id = ?', [studentId]);
+    if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
+
+    // Check if auto-approve is enabled in settings
+    const [[autoApproveRow]] = await pool.query('SELECT setting_value FROM settings WHERE setting_key = "auto_approve_certificates"');
+    const isAutoApprove = autoApproveRow && autoApproveRow.setting_value === 'true';
+
+    // Check existing certificates
+    const [existingCert] = await pool.query('SELECT id, certificate_id FROM certificates WHERE student_id = ?', [studentId]);
+    if (existingCert.length > 0) {
+      return res.json({ success: true, message: 'Your official certificate has already been issued!', certificate: existingCert[0] });
+    }
+
+    const [existingGen] = await pool.query('SELECT id, status FROM generated_certificates WHERE student_id = ? AND (course_id = ? OR course_id IS NULL)', [studentId, course_id || 1]);
+    if (existingGen.length > 0 && existingGen[0].status === 'pending_approval') {
+      return res.json({ success: true, message: 'Your certificate request is already pending Master approval.' });
+    }
+
+    const certNumber = `SRM-CERT-${Date.now().toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    if (isAutoApprove) {
+      const year = new Date().getFullYear();
+      const [[countRow]] = await pool.query('SELECT COUNT(*) as total FROM certificates');
+      const seq = (countRow.total + 1).toString().padStart(6, '0');
+      const certificate_id = `SRM-CERT-${year}-${seq}`;
+      const verification_code = `VERIFY-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      await pool.query(
+        `INSERT INTO certificates (
+          certificate_id, student_id, student_name, student_code, course_id, course_name,
+          course_duration, grade, completion_date, issue_date, trainer_name, authorized_signatory_name,
+          certificate_status, verification_code
+        ) VALUES (?, ?, ?, ?, ?, 'Android & iPhone IC-Level Repairing Course', '25 Days', 'A++', CURDATE(), CURDATE(), 'VINAYAK SANJAY KUMBHAR', 'VINAYAK SANJAY KUMBHAR', 'Issued', ?)`,
+        [certificate_id, studentId, student.name, student.student_id, course_id || null, verification_code]
+      );
+
+      await pool.query(
+        'INSERT INTO generated_certificates (student_id, course_id, certificate_number, issue_date, status) VALUES (?, ?, ?, CURDATE(), "approved")',
+        [studentId, course_id || 1, certificate_id]
+      );
+
+      res.json({ success: true, message: 'Certificate issued automatically!' });
+    } else {
+      await pool.query(
+        'INSERT INTO generated_certificates (student_id, course_id, certificate_number, issue_date, status) VALUES (?, ?, ?, CURDATE(), "pending_approval")',
+        [studentId, course_id || 1, certNumber]
+      );
+
+      await pool.query(
+        'INSERT INTO notifications (user_role, title, message, type) VALUES (?, ?, ?, ?)',
+        ['master', 'New Certificate Request', `${student.name} requested a completion certificate.`, 'approval']
+      );
+
+      res.json({ success: true, message: 'Certificate request submitted for Master approval!' });
+    }
+  } catch (err) {
+    console.error('Request certificate error:', err);
+    res.status(500).json({ success: false, message: 'Failed to request certificate' });
+  }
+});
+
+// =====================================================
+// LMS: UPDATE VIDEO/PDF PROGRESS (position, watch %)
+// =====================================================
+router.post('/progress/update', async (req, res) => {
+  try {
+    const studentId = req.user.id;
+    const { itemId, courseId, lastPositionSeconds, watchPercentage } = req.body;
+
+    if (!itemId) return res.status(400).json({ success: false, message: 'itemId required' });
+
+    // Upsert progress record
+    await pool.query(
+      `INSERT INTO student_item_progress 
+         (student_id, item_id, completed, watch_percentage, last_position_seconds, last_accessed_at) 
+       VALUES (?, ?, 0, ?, ?, NOW())
+       ON DUPLICATE KEY UPDATE 
+         watch_percentage = GREATEST(watch_percentage, VALUES(watch_percentage)),
+         last_position_seconds = VALUES(last_position_seconds),
+         last_accessed_at = NOW()`,
+      [studentId, itemId, parseFloat(watchPercentage) || 0, parseInt(lastPositionSeconds) || 0]
+    );
+
+    // Update student_last_activity for "Continue Learning"
+    if (courseId) {
+      await pool.query(
+        `INSERT INTO student_last_activity (student_id, course_id, item_id, last_position_seconds)
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE item_id = VALUES(item_id), last_position_seconds = VALUES(last_position_seconds), updated_at = NOW()`,
+        [studentId, courseId, itemId, parseInt(lastPositionSeconds) || 0]
+      );
+    }
+
+    // Increment view count on the material
+    await pool.query('UPDATE course_subject_items SET view_count = view_count + 1 WHERE id = ? AND (view_count = 0 OR TRUE)', [itemId])
+      .catch(() => {});  // non-critical
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Progress update error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// =====================================================
+// LMS: GET LAST ACTIVITY (Continue Learning)
+// =====================================================
+router.get('/last-activity/:courseId', async (req, res) => {
+  try {
+    const studentId = req.user.id;
+    const courseId = req.params.courseId;
+
+    const [[activity]] = await pool.query(
+      `SELECT sla.item_id, sla.last_position_seconds, sla.updated_at,
+              csi.title, csi.material_type, csi.type
+       FROM student_last_activity sla
+       JOIN course_subject_items csi ON sla.item_id = csi.id
+       WHERE sla.student_id = ? AND sla.course_id = ?`,
+      [studentId, courseId]
+    );
+
+    res.json({ success: true, lastActivity: activity || null });
+  } catch (err) {
+    // Table may not exist yet — return null gracefully
+    res.json({ success: true, lastActivity: null });
   }
 });
 

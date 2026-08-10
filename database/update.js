@@ -72,7 +72,7 @@ require('dotenv').config();
 
   // Settings update
   await c.query(`INSERT INTO settings (setting_key, setting_value, description) VALUES 
-    ('app_name', 'SHREE RAAM MOBAILE', 'Application Name'),
+    ('app_name', 'SRM Mobaile Fixit', 'Application Name'),
     ('founder', 'Vinayak Sanjay Kumbhar', 'Founder Name'),
     ('contact_mobile', '919552210333', 'Contact Mobile'),
     ('whatsapp_link', 'https://wa.me/919552210333', 'WhatsApp Link')

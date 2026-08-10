@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Wrench, Clock, CheckCircle, DollarSign, TrendingUp, Briefcase, Package, Percent, Award, BarChart3, Settings, Truck, Landmark, Wallet } from 'lucide-react';
+import { Users, Wrench, Clock, CheckCircle, DollarSign, TrendingUp, Package, Percent, Award, BarChart3, Settings, Truck, Landmark, Wallet, Printer } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import api from '../lib/api';
 import Navbar from '../components/Navbar';
 import StatusBadge from '../components/StatusBadge';
 import Loading from '../components/Loading';
 import ToastContainer, { showToast } from '../components/Toast';
+import CustomerTrackingList from '../components/CustomerTrackingList';
 
 export default function AdminDashboard() {
   const { user, isAuthenticated } = useAuth();
@@ -54,6 +55,7 @@ export default function AdminDashboard() {
 
   const tabs = [
     { id: 'overview', label: 'Overview' },
+    { id: 'customer_tracking', label: 'Customer Tracking & Print Details' },
     { id: 'analytics', label: 'Analytics' },
     { id: 'financial', label: 'Financial' },
     { id: 'performance', label: 'Performance' },
@@ -72,6 +74,12 @@ export default function AdminDashboard() {
             <p className="text-gray-500 text-sm">Welcome, {user?.name}</p>
           </div>
           <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => setActiveTab('customer_tracking')}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-2.5 px-4 rounded-xl flex items-center gap-2 transition shadow-sm hover:shadow-md text-sm border border-emerald-500/40"
+            >
+              <Printer className="w-4 h-4 text-emerald-200" /> 🖨 Customer Tracking & Print
+            </button>
             <button
               onClick={() => navigate('/admin/accessories')}
               className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2.5 px-4 rounded-xl flex items-center gap-2 transition shadow-sm hover:shadow-md text-sm"
@@ -97,20 +105,12 @@ export default function AdminDashboard() {
               <Wallet className="w-4 h-4" /> Salary Wallet
             </button>
             {user?.role !== 'staff' && (
-              <>
-                <button
-                  onClick={() => navigate('/dashboard/master')}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-4 rounded-xl flex items-center gap-2 transition shadow-sm hover:shadow-md text-sm"
-                >
-                  <Briefcase className="w-4 h-4" /> Course Management & Assign
-                </button>
-                <button
-                  onClick={() => navigate('/admin/repair-control')}
-                  className="bg-gray-800 hover:bg-gray-900 text-white font-semibold py-2.5 px-4 rounded-xl flex items-center gap-2 transition shadow-sm hover:shadow-md text-sm"
-                >
-                  <Settings className="w-4 h-4" /> Repair Control
-                </button>
-              </>
+              <button
+                onClick={() => navigate('/admin/repair-control')}
+                className="bg-gray-800 hover:bg-gray-900 text-white font-semibold py-2.5 px-4 rounded-xl flex items-center gap-2 transition shadow-sm hover:shadow-md text-sm"
+              >
+                <Settings className="w-4 h-4" /> Repair Control
+              </button>
             )}
           </div>
         </div>
@@ -205,6 +205,11 @@ export default function AdminDashboard() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Customer Tracking & Print Details Tab */}
+        {activeTab === 'customer_tracking' && (
+          <CustomerTrackingList role={user?.role} />
         )}
 
         {/* Analytics Tab */}

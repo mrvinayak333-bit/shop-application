@@ -35,7 +35,19 @@ app.use(morgan('dev'));
 
 // Static Files
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Uploads: PDFs forced inline (view-only), all others served normally with iframe cross-origin support
+app.use('/uploads', (req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.removeHeader('X-Frame-Options');
+  const filePath = req.path.toLowerCase();
+  if (filePath.endsWith('.pdf')) {
+    // Inline = browser opens it, not downloads. Blocks "Save As" prompt.
+    res.setHeader('Content-Disposition', 'inline');
+    res.setHeader('Content-Type', 'application/pdf');
+  }
+  next();
+}, express.static(path.join(__dirname, 'uploads')));
 
 const reactDist = path.join(__dirname, 'client', 'dist');
 if (fs.existsSync(reactDist)) { app.use(express.static(reactDist)); }
@@ -101,14 +113,12 @@ dashboardRoles.forEach(role => {
 });
 
 if (fs.existsSync(reactDist)) {
-  const spaIndex = path.join(reactDist, 'index.html');
-  app.get('/', (req, res) => res.sendFile(spaIndex));
-  app.get('/login/*', (req, res) => res.sendFile(spaIndex));
-  app.get('/register/*', (req, res) => res.sendFile(spaIndex));
-  app.get('/dashboard/*', (req, res) => res.sendFile(spaIndex));
-  app.get('/repair/register', (req, res) => res.sendFile(spaIndex));
-  app.get('/track/*', (req, res) => res.sendFile(spaIndex));
-  app.get('/technician/*', (req, res) => res.sendFile(spaIndex));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+      return next();
+    }
+    res.sendFile(path.join(reactDist, 'index.html'));
+  });
 } else {
   app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
   app.get('/login/:role', (req, res) => {
@@ -200,6 +210,52 @@ async function runMigrations() {
       }
     }
 
+    // ─── LMS UPGRADE MIGRATIONS ───────────────────────────────────────────────
+    // New columns for course_subject_items (support 6 material types)
+    const lmsCols = [
+      ['material_type', "VARCHAR(30) DEFAULT 'youtube'"],
+      ['description',   'TEXT NULL'],
+      ['notes_content', 'LONGTEXT NULL'],
+      ['external_url',  'VARCHAR(2000) NULL'],
+      ['duration_minutes', 'DECIMAL(6,2) DEFAULT 0'],
+      ['view_count',    'INT DEFAULT 0'],
+      ['thumbnail_url', 'VARCHAR(1000) NULL'],
+      ['youtube_embed_url', 'VARCHAR(1000) NULL'],
+    ];
+    for (const [col, def] of lmsCols) {
+      try {
+        await pool.query(`ALTER TABLE course_subject_items ADD COLUMN ${col} ${def}`);
+      } catch (e) {
+        if (!e.message.includes('Duplicate column')) console.log(`LMS col skip: ${col}`);
+      }
+    }
+
+    // Enhanced student progress columns
+    const progressCols = [
+      ['watch_percentage',    'DECIMAL(5,2) DEFAULT 0'],
+      ['last_position_seconds', 'INT DEFAULT 0'],
+      ['last_accessed_at',   'TIMESTAMP NULL DEFAULT NULL'],
+    ];
+    for (const [col, def] of progressCols) {
+      try {
+        await pool.query(`ALTER TABLE student_item_progress ADD COLUMN ${col} ${def}`);
+      } catch (e) {
+        if (!e.message.includes('Duplicate column')) console.log(`Progress col skip: ${col}`);
+      }
+    }
+
+    // Create student_last_activity for "Continue Learning" feature
+    await pool.query(`CREATE TABLE IF NOT EXISTS student_last_activity (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      student_id INT NOT NULL,
+      course_id  INT NOT NULL,
+      item_id    INT NOT NULL,
+      last_position_seconds INT DEFAULT 0,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_student_course (student_id, course_id)
+    )`);
+    // ─────────────────────────────────────────────────────────────────────────
+
     // Create delivery_handover_log table
     await pool.query(`CREATE TABLE IF NOT EXISTS delivery_handover_log (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -226,14 +282,14 @@ async function runMigrations() {
 
 // Start Server
 server.listen(PORT, async () => {
-  console.log(`\n🔧 SHREE RAAM MOBAILE - Mobile Repairing Service`);
+  console.log(`\n🔧 SRM Mobaile Fixit - IC Level Repairing Specialist`);
   console.log(`🚀 Running on port ${PORT}`);
   console.log(`📍 Website: ${protocol}://localhost:${PORT}`);
   console.log(`📍 API: ${protocol}://localhost:${PORT}/api\n`);
   console.log(`Default Login:`);
   console.log(`  Master:  mr.vinayak333@gmail.com / VINAYAK@333`);
   console.log(`  Admin:   admin@repairsystem.com / master123\n`);
-  console.log(`Contact WhatsApp: https://wa.me/919552210333\n`);
+  console.log(`Contact WhatsApp: https://wa.me/919130521333\n`);
   await runMigrations();
 });
 

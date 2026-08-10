@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Search, ShoppingCart, Star, Filter, ArrowUpDown, ChevronRight, Check } from 'lucide-react';
+import { 
+  Search, ShoppingCart, Star, ArrowUpDown, 
+  Eye, Package, X, Sparkles, ShoppingBag
+} from 'lucide-react';
 import Navbar from '../components/Navbar';
 import Loading from '../components/Loading';
 import ToastContainer, { showToast } from '../components/Toast';
@@ -9,22 +12,18 @@ import { useAuth } from '../lib/AuthContext';
 
 const categories = [
   "All",
-  "Mobile Covers",
-  "Screen Protectors",
   "Chargers",
   "Fast Chargers",
   "Charging Cables",
-  "Smart Watches",
+  "Mobile Covers",
+  "Screen Protectors",
   "Headphones",
-  "Neckbands",
-  "Earphones",
   "TWS Buds",
-  "Bluetooth Speakers",
   "Power Banks",
   "Memory Cards",
+  "Smart Watches",
+  "Bluetooth Speakers",
   "OTG & Adapters",
-  "Mobile Holders",
-  "Car Chargers",
   "Tempered Glass",
   "Other Accessories"
 ];
@@ -39,6 +38,9 @@ export default function AccessoriesStore() {
   const [sortBy, setSortBy] = useState('newest');
   const [cartCount, setCartCount] = useState(0);
   const [addingToCart, setAddingToCart] = useState(null);
+  
+  // Quick View Modal state
+  const [quickViewProduct, setQuickViewProduct] = useState(null);
 
   useEffect(() => {
     fetchProducts();
@@ -84,12 +86,12 @@ export default function AccessoriesStore() {
 
   const handleAddToCart = async (productId, redirect = false) => {
     if (!isAuthenticated) {
-      showToast('Please login to buy accessories', 'info');
+      showToast('Please login to buy accessories & tools', 'info');
       navigate('/login/customer');
       return;
     }
     if (user?.role !== 'customer') {
-      showToast('Only customers can purchase accessories.', 'error');
+      showToast('Only customers can purchase items.', 'error');
       return;
     }
 
@@ -111,11 +113,12 @@ export default function AccessoriesStore() {
     setAddingToCart(null);
   };
 
-  // Filter and sort products on client side for search query
+  // Filter and sort products on client side
   const filteredProducts = products.filter(p => 
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.brand.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.description.toLowerCase().includes(searchQuery.toLowerCase())
+    p.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase()))
   ).sort((a, b) => {
     if (sortBy === 'price-low') {
       const priceA = a.discount_price !== null ? a.discount_price : a.price;
@@ -130,7 +133,7 @@ export default function AccessoriesStore() {
     if (sortBy === 'rating') {
       return b.rating - a.rating;
     }
-    return new Date(b.created_at) - new Date(a.created_at); // newest
+    return new Date(b.created_at) - new Date(a.created_at);
   });
 
   const getDiscountPercent = (price, discountPrice) => {
@@ -140,178 +143,293 @@ export default function AccessoriesStore() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-slate-50/70 flex flex-col font-sans text-slate-800 selection:bg-emerald-100 selection:text-emerald-900">
       <Navbar />
       <ToastContainer />
-      
-      {/* Catalog Header banner */}
-      <div className="bg-emerald-800 text-white py-12 px-4 text-center relative overflow-hidden">
-        <div className="max-w-4xl mx-auto z-10 relative">
-          <h1 className="text-3xl md:text-4xl font-extrabold mb-3 tracking-tight">Accessories Store</h1>
-          <p className="text-emerald-100 text-base md:text-lg mb-6">Upgrade your mobile with premium screen protectors, chargers, ear buds & holders.</p>
-          
-          {/* Main search and cart float */}
-          <div className="flex flex-col sm:flex-row max-w-xl mx-auto gap-3 items-center">
+
+      {/* 🛍️ STORE HERO BANNER */}
+      <section className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white py-14 px-4 relative overflow-hidden border-b border-slate-800">
+        <div className="absolute top-0 right-1/3 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+        
+        <div className="max-w-6xl mx-auto z-10 relative text-center">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold mb-4 backdrop-blur-md">
+            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+            100% GENUINE MOBILE ACCESSORIES
+          </div>
+
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-3 tracking-tight text-white">
+            Accessories & Spares <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">Store</span>
+          </h1>
+          <p className="text-slate-300 text-xs sm:text-sm max-w-xl mx-auto mb-6 leading-relaxed">
+            Fast chargers, original USB cables, tempered glass, memory cards, back covers, and premium audio accessories.
+          </p>
+
+          {/* SEARCH & QUICK CART BAR */}
+          <div className="flex flex-col sm:flex-row max-w-2xl mx-auto gap-3 items-center">
             <div className="relative w-full">
               <input 
                 type="text" 
-                placeholder="Search accessories or brands..." 
+                placeholder="Search tools, displays, ICs, chargers or brands..." 
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 rounded-xl border-none text-gray-900 focus:ring-2 focus:ring-emerald-500 shadow-lg text-sm"
+                className="w-full pl-11 pr-4 py-3 rounded-2xl bg-slate-900/90 text-white placeholder-slate-400 border border-slate-700 text-xs focus:outline-none focus:border-emerald-400 shadow-xl"
               />
-              <Search className="w-5 h-5 text-gray-400 absolute left-3 top-3.5" />
+              <Search className="w-4 h-4 text-slate-400 absolute left-4 top-3.5" />
             </div>
+
             {isAuthenticated && user?.role === 'customer' && (
-              <Link to="/accessories/cart" className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-3 rounded-xl font-semibold shadow-lg transition-transform hover:scale-105 w-full sm:w-auto shrink-0 text-sm">
-                <ShoppingCart className="w-5 h-5" /> Cart ({cartCount})
+              <Link 
+                to="/accessories/cart" 
+                className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-emerald-600/20 transition shrink-0 text-xs w-full sm:w-auto"
+              >
+                <ShoppingCart className="w-4 h-4" /> My Cart ({cartCount})
               </Link>
             )}
           </div>
         </div>
-      </div>
+      </section>
 
-      <div className="max-w-7xl mx-auto px-4 py-8 flex-1 grid grid-cols-1 lg:grid-cols-4 gap-8">
+      {/* 🏷️ CATEGORY SLIDER PILLS */}
+      <section className="bg-white border-b border-slate-200/80 py-3 px-4 sticky top-16 z-20 shadow-xs">
+        <div className="max-w-6xl mx-auto flex items-center gap-2 overflow-x-auto scrollbar-none py-1">
+          {categories.map(cat => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all duration-200 shrink-0 border ${
+                selectedCategory === cat
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-600/30'
+                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {/* 📦 STORE CONTENT GRID */}
+      <div className="max-w-6xl mx-auto px-4 py-8 flex-1 w-full space-y-6">
         
-        {/* Categories Sidebar */}
-        <div className="lg:col-span-1 space-y-6">
-          <div className="card sticky top-20">
-            <h2 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2 border-b pb-2">
-              <Filter className="w-4 h-4 text-emerald-600" /> Categories
-            </h2>
-            <div className="space-y-1 max-h-96 lg:max-h-[60vh] overflow-y-auto pr-2 scrollbar-thin">
-              {categories.map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors ${selectedCategory === cat ? 'bg-emerald-50 text-emerald-700 font-semibold' : 'text-gray-600 hover:bg-gray-100'}`}
-                >
-                  <span>{cat}</span>
-                  {selectedCategory === cat && <ChevronRight className="w-4 h-4" />}
-                </button>
-              ))}
-            </div>
+        {/* FILTER & COUNT TOOLBAR */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-2xl shadow-2xs border border-slate-200/80">
+          <div>
+            <span className="text-xs text-slate-500 font-medium">
+              Showing <strong className="text-slate-900 font-extrabold">{filteredProducts.length}</strong> items for category <strong className="text-emerald-700 font-bold">"{selectedCategory}"</strong>
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 self-stretch sm:self-auto">
+            <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+            <span className="text-xs font-bold text-slate-500">Sort:</span>
+            <select 
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value)}
+              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-500"
+            >
+              <option value="newest">Newest Arrivals</option>
+              <option value="price-low">Price: Low to High</option>
+              <option value="price-high">Price: High to Low</option>
+              <option value="rating">Highest Rated</option>
+            </select>
           </div>
         </div>
 
-        {/* Catalog grid */}
-        <div className="lg:col-span-3 space-y-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border">
-            <div>
-              <p className="text-sm text-gray-500">Showing <span className="font-semibold text-gray-900">{filteredProducts.length}</span> products</p>
-            </div>
-            <div className="flex items-center gap-2 self-stretch sm:self-auto">
-              <ArrowUpDown className="w-4 h-4 text-gray-400" />
-              <select 
-                value={sortBy}
-                onChange={e => setSortBy(e.target.value)}
-                className="select py-1.5 text-sm"
-              >
-                <option value="newest">Newest First</option>
-                <option value="price-low">Price: Low to High</option>
-                <option value="price-high">Price: High to Low</option>
-                <option value="rating">Top Rated</option>
-              </select>
-            </div>
+        {/* PRODUCTS GRID */}
+        {loading ? (
+          <Loading />
+        ) : filteredProducts.length === 0 ? (
+          <div className="bg-white rounded-3xl p-16 text-center border border-slate-200 shadow-xs max-w-lg mx-auto my-8 space-y-3">
+            <Package className="w-14 h-14 text-slate-300 mx-auto" />
+            <h3 className="text-base font-bold text-slate-800">No accessories found</h3>
+            <p className="text-xs text-slate-500">No items match your selected category or search query.</p>
+            <button 
+              onClick={() => { setSelectedCategory('All'); setSearchQuery(''); }}
+              className="btn-primary py-2.5 px-6 text-xs font-bold"
+            >
+              Reset Filters
+            </button>
           </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {filteredProducts.map(p => {
+              const discPercent = getDiscountPercent(p.price, p.discount_price);
+              const activePrice = p.discount_price !== null ? p.discount_price : p.price;
+              const isOutOfStock = p.stock <= 0;
+              const savings = p.discount_price !== null ? (p.price - p.discount_price) : 0;
 
-          {loading ? (
-            <Loading />
-          ) : filteredProducts.length === 0 ? (
-            <div className="card py-16 text-center">
-              <ShoppingCart className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500 text-lg font-medium mb-1">No products found</p>
-              <p className="text-sm text-gray-400">Try adjusting your filters or search terms.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-              {filteredProducts.map(p => {
-                const discPercent = getDiscountPercent(p.price, p.discount_price);
-                const activePrice = p.discount_price !== null ? p.discount_price : p.price;
-                const isOutOfStock = p.stock <= 0;
+              return (
+                <div 
+                  key={p.id} 
+                  className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden group hover:-translate-y-1"
+                >
+                  
+                  {/* PRODUCT IMAGE & BADGES */}
+                  <div className="aspect-square bg-slate-50 relative overflow-hidden border-b border-slate-100 flex items-center justify-center">
+                    {p.image_url ? (
+                      <img 
+                        src={p.image_url} 
+                        alt={p.name} 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                      />
+                    ) : (
+                      <span className="text-slate-300 text-5xl">📦</span>
+                    )}
 
-                return (
-                  <div key={p.id} className="bg-white rounded-2xl border shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden group hover:-translate-y-1">
-                    
-                    {/* Image frame */}
-                    <div className="aspect-square bg-gray-100 relative overflow-hidden border-b flex items-center justify-center">
-                      {p.image_url ? (
-                        <img 
-                          src={p.image_url} 
-                          alt={p.name} 
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                        />
-                      ) : (
-                        <span className="text-gray-300 text-4xl">📱</span>
-                      )}
-                      
-                      {/* Discount Badge */}
-                      {discPercent > 0 && (
-                        <span className="absolute top-3 left-3 bg-red-500 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow">
-                          -{discPercent}% OFF
-                        </span>
-                      )}
+                    {/* Discount Badge */}
+                    {discPercent > 0 && (
+                      <span className="absolute top-2.5 left-2.5 bg-red-500 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-xs">
+                        -{discPercent}% OFF
+                      </span>
+                    )}
 
-                      {/* Stock overlay */}
-                      {isOutOfStock && (
-                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                          <span className="bg-red-600 text-white text-xs font-bold px-3 py-1.5 rounded-full uppercase tracking-wider">Out of stock</span>
-                        </div>
-                      )}
-                    </div>
+                    {/* Stock Status Badge */}
+                    {isOutOfStock ? (
+                      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center">
+                        <span className="bg-red-600 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider">Out of Stock</span>
+                      </div>
+                    ) : (
+                      <button 
+                        onClick={() => setQuickViewProduct(p)}
+                        className="absolute bottom-2.5 right-2.5 bg-white/90 hover:bg-white text-slate-700 p-2 rounded-xl shadow-md backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Quick View"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
 
-                    {/* Details body */}
-                    <div className="p-4 flex-1 flex flex-col space-y-2">
-                      <div className="flex justify-between items-start gap-1">
-                        <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">{p.category}</span>
-                        <span className="text-xs text-gray-400 font-medium">{p.brand}</span>
+                  {/* PRODUCT DETAILS */}
+                  <div className="p-4 flex-1 flex flex-col justify-between space-y-3 text-left">
+                    <div>
+                      <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                        <span className="text-emerald-700 font-extrabold bg-emerald-50 px-2 py-0.5 rounded-md">{p.category}</span>
+                        <span>{p.brand}</span>
                       </div>
 
-                      <h3 className="font-bold text-gray-800 text-sm group-hover:text-emerald-700 transition-colors line-clamp-2 h-10">{p.name}</h3>
+                      <h3 className="font-bold text-slate-900 text-xs line-clamp-2 group-hover:text-emerald-700 transition-colors h-9">
+                        {p.name}
+                      </h3>
 
-                      <p className="text-xs text-gray-400 line-clamp-2">{p.description || 'No description available.'}</p>
+                      <p className="text-[11px] text-slate-500 line-clamp-2 mt-1">
+                        {p.description || 'Professional grade repairing equipment.'}
+                      </p>
+                    </div>
 
-                      {/* Rating */}
-                      <div className="flex items-center gap-1">
-                        <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
-                        <span className="text-xs font-semibold text-gray-700">{parseFloat(p.rating).toFixed(1)}</span>
-                        <span className="text-[10px] text-gray-400">({p.stock} remaining)</span>
+                    <div className="space-y-2 border-t border-slate-100 pt-2">
+                      {/* Rating & Stock */}
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-1">
+                          <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                          <span className="font-bold text-slate-800">{parseFloat(p.rating).toFixed(1)}</span>
+                        </div>
+                        <span className={`text-[10px] font-bold ${p.stock > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                          {p.stock > 0 ? `${p.stock} in stock` : 'Out of stock'}
+                        </span>
                       </div>
 
                       {/* Prices */}
-                      <div className="flex items-baseline gap-2 pt-2 flex-1 items-end">
-                        <span className="text-lg font-extrabold text-emerald-700">₹{activePrice}</span>
-                        {p.discount_price !== null && (
-                          <span className="text-xs text-gray-400 line-through">₹{p.price}</span>
+                      <div className="flex items-baseline justify-between">
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-base font-black text-emerald-600">₹{parseFloat(activePrice).toFixed(2)}</span>
+                          {p.discount_price !== null && (
+                            <span className="text-[11px] text-slate-400 line-through">₹{parseFloat(p.price).toFixed(2)}</span>
+                          )}
+                        </div>
+                        {savings > 0 && (
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                            Save ₹{savings}
+                          </span>
                         )}
                       </div>
 
                       {/* Action buttons */}
-                      <div className="flex gap-2 pt-3">
+                      <div className="flex gap-2 pt-1">
                         <button
                           onClick={() => handleAddToCart(p.id, false)}
                           disabled={isOutOfStock || addingToCart === p.id}
-                          className="flex-1 border border-emerald-600 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 disabled:hover:bg-transparent py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
+                          className="flex-1 border border-emerald-600 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition"
                         >
                           <ShoppingCart className="w-3.5 h-3.5" /> Cart
                         </button>
                         <button
                           onClick={() => handleAddToCart(p.id, true)}
                           disabled={isOutOfStock || addingToCart === p.id}
-                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center transition-colors"
+                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center transition shadow-xs"
                         >
                           Buy Now
                         </button>
                       </div>
-
                     </div>
+
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
+
+      {/* 🔍 QUICK VIEW PRODUCT MODAL */}
+      {quickViewProduct && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl relative border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <button 
+              onClick={() => setQuickViewProduct(null)}
+              className="absolute top-4 right-4 bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 rounded-full transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="grid md:grid-cols-2 gap-6 items-center">
+              <div className="aspect-square bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 overflow-hidden">
+                {quickViewProduct.image_url ? (
+                  <img src={quickViewProduct.image_url} alt={quickViewProduct.name} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-slate-300 text-6xl">📦</span>
+                )}
+              </div>
+
+              <div className="space-y-4 text-left">
+                <div className="space-y-1">
+                  <span className="text-[10px] font-extrabold uppercase bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md">
+                    {quickViewProduct.category}
+                  </span>
+                  <h3 className="text-lg font-extrabold text-slate-900 leading-snug">
+                    {quickViewProduct.name}
+                  </h3>
+                  <p className="text-xs text-slate-500 font-semibold">Brand: {quickViewProduct.brand}</p>
+                </div>
+
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  {quickViewProduct.description || 'Genuine original accessory with warranty.'}
+                </p>
+
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-black text-emerald-600">
+                    ₹{quickViewProduct.discount_price !== null ? parseFloat(quickViewProduct.discount_price).toFixed(2) : parseFloat(quickViewProduct.price).toFixed(2)}
+                  </span>
+                  {quickViewProduct.discount_price !== null && (
+                    <span className="text-xs text-slate-400 line-through">₹{parseFloat(quickViewProduct.price).toFixed(2)}</span>
+                  )}
+                </div>
+
+                <div className="pt-2 flex gap-3">
+                  <button
+                    onClick={() => {
+                      handleAddToCart(quickViewProduct.id, true);
+                      setQuickViewProduct(null);
+                    }}
+                    className="btn-primary w-full py-3 text-xs font-extrabold"
+                  >
+                    Instant Buy Now
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

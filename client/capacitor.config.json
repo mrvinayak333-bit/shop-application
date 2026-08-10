@@ -1,6 +1,6 @@
 {
   "appId": "com.shop.application",
-  "appName": "SRM",
+  "appName": "SRM Mobaile Fixit",
   "webDir": "dist",
   "server": {
     "androidScheme": "https",

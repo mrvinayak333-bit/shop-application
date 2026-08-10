@@ -7,6 +7,7 @@ import Navbar from '../components/Navbar';
 import StatusBadge from '../components/StatusBadge';
 import Loading from '../components/Loading';
 import ToastContainer, { showToast } from '../components/Toast';
+import PaymentGatewayModal from '../components/PaymentGatewayModal';
 
 export default function CustomerDashboard() {
   const { user, isAuthenticated } = useAuth();
@@ -31,6 +32,34 @@ export default function CustomerDashboard() {
   const [feedbackRating, setFeedbackRating] = useState(5);
   const [feedbackComments, setFeedbackComments] = useState('');
   const [submittingFeedback, setSubmittingFeedback] = useState(null);
+  const [activeRepairPayment, setActiveRepairPayment] = useState(null);
+
+  const handleExecuteRepairPayment = async (paymentDetails = {}) => {
+    if (!activeRepairPayment) return;
+    setProcessingPayment(activeRepairPayment.id);
+    try {
+      const formData = new FormData();
+      formData.append('payment_method', paymentDetails.payment_method || 'Online Payment');
+      formData.append('amount', activeRepairPayment.total_cost || 0);
+      if (paymentDetails.transaction_id) {
+        formData.append('transaction_id', paymentDetails.transaction_id);
+      }
+      
+      const res = await api.post(`/repair/${activeRepairPayment.id}/payment`, formData);
+      if (res && res.success) {
+        showToast('Repair payment submitted & verified successfully!', 'success');
+        setActiveRepairPayment(null);
+        loadDashboard();
+      } else {
+        showToast(res?.message || 'Error submitting payment', 'error');
+      }
+    } catch (err) {
+      console.error('Repair payment error:', err);
+      showToast('Error submitting payment', 'error');
+    } finally {
+      setProcessingPayment(null);
+    }
+  };
 
   useEffect(() => {
     if (!isAuthenticated || user?.role !== 'customer') {
@@ -450,38 +479,37 @@ export default function CustomerDashboard() {
         {paymentPendingRepairs.length > 0 && (
           <div className="mb-6">
             <h2 className="text-lg font-semibold mb-3 flex items-center gap-2 text-green-600">
-              <CreditCard className="w-5 h-5" /> Make Payment
+              <CreditCard className="w-5 h-5" /> Make Repair Payment
             </h2>
             {paymentPendingRepairs.map(repair => (
-              <div key={repair.id} className="card border-2 border-green-200 bg-green-50">
-                <p className="font-semibold text-lg mb-1">{repair.brand} {repair.model}</p>
-                <p className="text-sm text-gray-500 font-mono mb-3">{repair.tracking_number}</p>
-                <div className="p-3 bg-white rounded-lg mb-3 space-y-2">
-                  <div className="flex justify-between text-sm"><span>Parts Cost:</span><span>₹{repair.parts_cost || 0}</span></div>
-                  <div className="flex justify-between text-sm"><span>Labor Cost:</span><span>₹{repair.labor_cost || 0}</span></div>
-                  {parseFloat(repair.other_charges || 0) > 0 && <div className="flex justify-between text-sm"><span>Other:</span><span>₹{repair.other_charges}</span></div>}
-                  {parseFloat(repair.discount || 0) > 0 && <div className="flex justify-between text-sm text-green-600"><span>Discount:</span><span>-₹{repair.discount}</span></div>}
-                  <div className="flex justify-between font-bold text-lg pt-2 border-t"><span>Total:</span><span className="text-green-700">₹{repair.total_cost || 0}</span></div>
-                </div>
-                <div className="space-y-3">
+              <div key={repair.id} className="card border-2 border-green-200 bg-green-50/80">
+                <div className="flex justify-between items-start mb-2">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                      {['Cash','UPI','PhonePe','Google Pay','Paytm','Debit Card','Credit Card','Net Banking'].map(m => (
-                        <button key={m} onClick={() => setPaymentMethod(m)} className={`p-2 rounded-lg border text-sm font-medium transition ${paymentMethod === m ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-700 border-gray-300 hover:border-green-400'}`}>
-                          {m}
-                        </button>
-                      ))}
-                    </div>
+                    <p className="font-bold text-lg text-gray-900">{repair.brand} {repair.model}</p>
+                    <p className="text-xs text-gray-500 font-mono">{repair.tracking_number}</p>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Screenshot (optional)</label>
-                    <input type="file" accept="image/*" onChange={e => setPaymentScreenshot(e.target.files[0])} className="input" />
-                  </div>
-                  <button onClick={() => submitPayment(repair.id)} disabled={processingPayment === repair.id || !paymentMethod} className="btn-primary w-full disabled:opacity-50">
-                    {processingPayment === repair.id ? 'Processing...' : 'Proceed to Pay ₹' + (repair.total_cost || 0)}
-                  </button>
+                  <span className="px-2.5 py-1 rounded-full text-xs font-extrabold bg-green-200 text-green-800">
+                    Payment Pending
+                  </span>
                 </div>
+
+                <div className="p-3 bg-white rounded-xl mb-4 space-y-1.5 text-xs shadow-2xs border border-green-100">
+                  <div className="flex justify-between text-gray-600"><span>Parts Cost:</span><span>₹{parseFloat(repair.parts_cost || 0).toFixed(2)}</span></div>
+                  <div className="flex justify-between text-gray-600"><span>Labor Cost:</span><span>₹{parseFloat(repair.labor_cost || 0).toFixed(2)}</span></div>
+                  {parseFloat(repair.other_charges || 0) > 0 && <div className="flex justify-between text-gray-600"><span>Other Charges:</span><span>₹{parseFloat(repair.other_charges).toFixed(2)}</span></div>}
+                  {parseFloat(repair.discount || 0) > 0 && <div className="flex justify-between text-green-600 font-semibold"><span>Discount Applied:</span><span>-₹{parseFloat(repair.discount).toFixed(2)}</span></div>}
+                  <div className="flex justify-between font-extrabold text-base pt-2 border-t text-gray-900">
+                    <span>Total Amount Payable:</span>
+                    <span className="text-emerald-700">₹{parseFloat(repair.total_cost || 0).toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setActiveRepairPayment(repair)}
+                  className="btn-primary w-full py-3 text-sm font-extrabold flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20"
+                >
+                  <CreditCard className="w-5 h-5" /> Open Payment Gateway (Pay ₹{parseFloat(repair.total_cost || 0).toFixed(2)})
+                </button>
               </div>
             ))}
           </div>
@@ -638,6 +666,18 @@ export default function CustomerDashboard() {
           </div>
         )}
       </main>
+
+      {/* 💳 PROFESSIONAL REPAIR PAYMENT GATEWAY MODAL */}
+      <PaymentGatewayModal
+        isOpen={!!activeRepairPayment}
+        onClose={() => setActiveRepairPayment(null)}
+        amount={activeRepairPayment?.total_cost || 0}
+        title={`Repair Service Payment`}
+        orderRef={activeRepairPayment?.tracking_number || 'REPAIR-PAY'}
+        onPaymentSubmit={handleExecuteRepairPayment}
+        defaultAddress={activeRepairPayment?.customer_address || ''}
+        defaultMobile={activeRepairPayment?.customer_mobile || ''}
+      />
     </div>
   );
 }

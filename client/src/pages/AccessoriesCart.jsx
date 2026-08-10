@@ -6,6 +6,7 @@ import Loading from '../components/Loading';
 import ToastContainer, { showToast } from '../components/Toast';
 import api from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
+import PaymentGatewayModal from '../components/PaymentGatewayModal';
 
 export default function AccessoriesCart() {
   const navigate = useNavigate();
@@ -95,32 +96,33 @@ export default function AccessoriesCart() {
     setPaymentMode(true);
   };
 
-  const executeCheckout = async () => {
+  const executeCheckout = async (paymentDetails = {}) => {
     setPaying(true);
-    // Simulate gateway delay
-    await new Promise(r => setTimeout(r, 2000));
     try {
       const res = await api.post('/accessories/checkout', {
-        shipping_address: shippingAddress,
-        shipping_mobile: shippingMobile,
-        payment_method: 'Online Payment'
+        shipping_address: paymentDetails.shipping_address || shippingAddress,
+        shipping_mobile: paymentDetails.shipping_mobile || shippingMobile,
+        payment_method: paymentDetails.payment_method || 'Online Payment',
+        transaction_id: paymentDetails.transaction_id || ''
       });
 
-      if (res.success) {
+      if (res && res.success) {
+        showToast('Payment verified! Order placed successfully.', 'success');
         setOrderSuccess({
           orderId: res.orderId,
           trackingNumber: res.trackingNumber
         });
         setCart([]);
-      } else {
-        showToast(res.message || 'Checkout failed', 'error');
         setPaymentMode(false);
+      } else {
+        showToast(res?.message || 'Checkout failed', 'error');
       }
     } catch (err) {
+      console.error('Checkout error:', err);
       showToast('Checkout failed due to server error', 'error');
-      setPaymentMode(false);
+    } finally {
+      setPaying(false);
     }
-    setPaying(false);
   };
 
   if (loading) return <div className="min-h-screen"><Navbar /><Loading /></div>;
@@ -355,6 +357,18 @@ export default function AccessoriesCart() {
           </div>
         )}
       </main>
+
+      {/* 💳 PROFESSIONAL PAYMENT GATEWAY MODAL */}
+      <PaymentGatewayModal
+        isOpen={paymentMode}
+        onClose={() => setPaymentMode(false)}
+        amount={cartTotal}
+        title="Accessories Store Checkout Payment"
+        orderRef={`CART-${user?.id || 'CUST'}`}
+        onPaymentSubmit={executeCheckout}
+        defaultAddress={shippingAddress}
+        defaultMobile={shippingMobile}
+      />
     </div>
   );
 }

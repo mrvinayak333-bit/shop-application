@@ -321,7 +321,7 @@ export default function MasterSettingsCenter() {
                     type="text" 
                     value={webSettings.whatsapp || ''} 
                     onChange={e => setWebSettings({ ...webSettings, whatsapp: e.target.value })}
-                    placeholder="919552210333"
+                    placeholder="919130521333"
                     className="w-full px-3 py-2 border rounded-xl focus:outline-none dark:bg-slate-900 dark:border-slate-700" 
                   />
                 </div>

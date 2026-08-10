@@ -5,7 +5,7 @@ import { useAuth } from '../lib/AuthContext';
 import ToastContainer, { showToast } from '../components/Toast';
 
 const roleConfig = {
-  customer: { title: 'Customer Login', color: 'emerald', redirect: '/', field: 'email_or_mobile', label: 'Mobile Number or Email', placeholder: 'Enter mobile number or email' },
+  customer: { title: 'Customer Login', color: 'emerald', redirect: '/dashboard/customer', field: 'email_or_mobile', label: 'Mobile Number or Email', placeholder: 'Enter mobile number or email' },
   technician: { title: 'Technician Login', color: 'blue', redirect: '/technician', field: 'email', label: 'Email Address', placeholder: 'your@email.com' },
   admin: { title: 'Admin Login', color: 'purple', redirect: '/dashboard/admin', field: 'email', label: 'Email Address', placeholder: 'your@email.com' },
   master: { title: 'Master Login', color: 'orange', redirect: '/dashboard/master', field: 'email', label: 'Email Address', placeholder: 'your@email.com' },
@@ -58,9 +58,12 @@ export default function LoginPage() {
       <ToastContainer />
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <Link to="/" className="inline-flex items-center gap-2 mb-4">
-            <Smartphone className="w-10 h-10 text-emerald-600" />
-            <span className="text-2xl font-bold text-gray-900">SHREE RAAM MOBILE</span>
+          <Link to="/" className="inline-flex items-center gap-2.5 mb-4">
+            <img src="/srm_navbar_logo.png" alt="SRM Mobaile Fixit" className="w-10 h-10 rounded-xl object-contain bg-white border border-emerald-500/40 p-0.5 shadow-xs" />
+            <div className="flex flex-col text-left">
+              <span className="text-xl font-black text-gray-900 leading-none">SRM Mobaile Fixit</span>
+              <span className="text-[9px] font-extrabold text-emerald-600 tracking-wider uppercase mt-0.5">IC LEVEL REPAIRING SPECIALIST</span>
+            </div>
           </Link>
           <h1 className="text-3xl font-bold text-gray-900">{config.title}</h1>
           {role === 'student' && <p className="text-sm text-gray-600 mt-2">Student ID Example: SRMS-2026-0001</p>}

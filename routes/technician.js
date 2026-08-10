@@ -311,7 +311,7 @@ router.get('/repair/:id/quotation/pdf', async (req, res) => {
     .status-sent{background:#fef3c7;color:#92400e}.status-approved{background:#d1fae5;color:#065f46}
     .status-rejected{background:#fee2e2;color:#991b1b}
     @media print{body{padding:0}}</style></head><body>
-    <div class="header"><h1>SHREE RAAM MOBILE</h1><p>Professional Mobile Repair Service</p><p>Solapur, Maharashtra | +91 95522 10333</p></div>
+    <div class="header"><h1>SRM Mobaile Fixit</h1><p>IC Level Repairing Specialist & Mobile Repairing Service</p><p>Solapur, Maharashtra | +91 91305 21333 / +91 95522 10333</p></div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
     <h2 style="margin:0">QUOTATION INVOICE</h2>
     <span class="status status-${q.status}">${q.status.toUpperCase()}</span></div>
@@ -333,7 +333,7 @@ router.get('/repair/:id/quotation/pdf', async (req, res) => {
     <div style="margin-top:40px;display:flex;justify-content:space-between">
     <div><p>_________________________</p><p>Customer Signature</p></div>
     <div><p>_________________________</p><p>Authorized Signature</p></div></div>
-    <div class="footer"><p>This is a computer-generated quotation. | Thank you for choosing SHREE RAAM MOBILE.</p>
+    <div class="footer"><p>This is a computer-generated quotation. | Thank you for choosing SRM Mobaile Fixit.</p>
     <p>Terms: Quotation valid for 7 days. Advance payment may be required for spare parts.</p></div>
     <script>window.onload=function(){window.print()}</script></body></html>`;
     res.send(html);

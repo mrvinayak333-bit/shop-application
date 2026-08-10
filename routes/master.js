@@ -158,11 +158,11 @@ router.post('/students', async (req, res) => {
         const tokens = normalizedCourse.split(/\s+/).filter(word => word.length > 2);
         let query = `SELECT id FROM courses
                      WHERE status = 'active' AND (
-                       COALESCE(title, course_name) = ?`;
+                       title = ?`;
         const params = [course];
 
         for (const token of tokens) {
-          query += ' OR LOWER(COALESCE(title, course_name)) LIKE ?';
+          query += ' OR LOWER(title) LIKE ?';
           params.push(`%${token}%`);
         }
 
@@ -171,7 +171,7 @@ router.post('/students', async (req, res) => {
         const [courseRows] = await pool.query(query, params);
         if (courseRows && courseRows.length > 0) {
           await pool.query(
-            'INSERT IGNORE INTO course_enrollments (student_id, course_id, enrolled_date, status) VALUES (?, ?, CURDATE(), ?)',
+            'INSERT IGNORE INTO course_enrollments (student_id, course_id, status) VALUES (?, ?, ?)',
             [result.insertId, courseRows[0].id, 'enrolled']
           );
         }
@@ -1086,6 +1086,218 @@ router.put('/students/:id/reset-device', async (req, res) => {
     const studentId = req.params.id;
     await pool.query('UPDATE students SET android_device_id = NULL WHERE id = ?', [studentId]);
     res.json({ success: true, message: 'Device binding reset successfully' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// =====================================================
+// MASTER: WEBSITE SETTINGS & CONFIGURATIONS
+// =====================================================
+
+// Get website settings
+router.get('/website-settings', async (req, res) => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS website_settings (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        setting_key VARCHAR(100) UNIQUE NOT NULL,
+        setting_value TEXT,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )
+    `);
+
+    const [rows] = await pool.query('SELECT setting_key, setting_value FROM website_settings');
+    res.json({ success: true, settings: rows });
+  } catch (err) {
+    console.error('Fetch website settings error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Update website settings (upsert key/value)
+router.put('/website-settings', async (req, res) => {
+  try {
+    const { key, value } = req.body;
+    if (!key) {
+      return res.status(400).json({ success: false, message: 'Setting key is required' });
+    }
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS website_settings (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        setting_key VARCHAR(100) UNIQUE NOT NULL,
+        setting_value TEXT,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )
+    `);
+
+    const strVal = typeof value === 'object' ? JSON.stringify(value) : (value || '');
+
+    await pool.query(
+      `INSERT INTO website_settings (setting_key, setting_value) 
+       VALUES (?, ?) 
+       ON DUPLICATE KEY UPDATE setting_value = ?`,
+      [key, strVal, strVal]
+    );
+
+    res.json({ success: true, message: `Setting ${key} updated successfully` });
+  } catch (err) {
+    console.error('Update website setting error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Get SMTP/General settings
+router.get('/settings', async (req, res) => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS settings (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        setting_key VARCHAR(100) UNIQUE NOT NULL,
+        setting_value TEXT,
+        description VARCHAR(255),
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )
+    `);
+
+    const [rows] = await pool.query('SELECT setting_key, setting_value, description FROM settings');
+    res.json({ success: true, settings: rows });
+  } catch (err) {
+    console.error('Fetch settings error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Update SMTP/General setting
+router.put('/settings', async (req, res) => {
+  try {
+    const { key, value, description } = req.body;
+    if (!key) return res.status(400).json({ success: false, message: 'Key is required' });
+
+    await pool.query(
+      `INSERT INTO settings (setting_key, setting_value, description) 
+       VALUES (?, ?, ?) 
+       ON DUPLICATE KEY UPDATE setting_value = ?, description = COALESCE(?, description)`,
+      [key, value || '', description || null, value || '', description || null]
+    );
+
+    res.json({ success: true, message: `Setting ${key} saved` });
+  } catch (err) {
+    console.error('Save setting error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Get Gallery Photos
+router.get('/gallery', async (req, res) => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS gallery_photos (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        title VARCHAR(255),
+        photo_path VARCHAR(500) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    const [rows] = await pool.query('SELECT * FROM gallery_photos ORDER BY created_at DESC');
+    res.json({ success: true, gallery: rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Upload Gallery Photo
+router.post('/gallery', uploadLogo.single('photo'), async (req, res) => {
+  try {
+    const { title } = req.body;
+    const photo_path = req.file ? `/uploads/${req.file.filename}` : '/srm_mobile_fixit.jpg';
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS gallery_photos (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        title VARCHAR(255),
+        photo_path VARCHAR(500) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    const [res2] = await pool.query(
+      'INSERT INTO gallery_photos (title, photo_path) VALUES (?, ?)',
+      [title || 'Gallery Photo', photo_path]
+    );
+
+    res.json({ success: true, message: 'Gallery photo uploaded', id: res2.insertId, photo_path });
+  } catch (err) {
+    console.error('Gallery upload error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Delete Gallery Photo
+router.delete('/gallery/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM gallery_photos WHERE id = ?', [req.params.id]);
+    res.json({ success: true, message: 'Photo deleted' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Get Sliders
+router.get('/sliders', async (req, res) => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS sliders (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        title VARCHAR(255),
+        subtitle VARCHAR(255),
+        image_path VARCHAR(500) NOT NULL,
+        display_order INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    const [rows] = await pool.query('SELECT * FROM sliders ORDER BY display_order ASC, created_at DESC');
+    res.json({ success: true, sliders: rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Upload Slider Image
+router.post('/sliders', uploadLogo.single('image'), async (req, res) => {
+  try {
+    const { title, subtitle, display_order } = req.body;
+    const image_path = req.file ? `/uploads/${req.file.filename}` : '/srm_mobile_fixit.jpg';
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS sliders (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        title VARCHAR(255),
+        subtitle VARCHAR(255),
+        image_path VARCHAR(500) NOT NULL,
+        display_order INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    const [res2] = await pool.query(
+      'INSERT INTO sliders (title, subtitle, image_path, display_order) VALUES (?, ?, ?, ?)',
+      [title || 'Slider Banner', subtitle || '', image_path, display_order || 0]
+    );
+
+    res.json({ success: true, message: 'Slider uploaded', id: res2.insertId, image_path });
+  } catch (err) {
+    console.error('Slider upload error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Delete Slider Image
+router.delete('/sliders/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM sliders WHERE id = ?', [req.params.id]);
+    res.json({ success: true, message: 'Slider deleted' });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error' });
   }

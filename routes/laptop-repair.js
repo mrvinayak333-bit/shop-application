@@ -44,6 +44,19 @@ router.post('/register', async (req, res) => {
       'INSERT INTO laptop_repair_status (repair_id, status, notes) VALUES (?,?,?)',
       [result.insertId, 'registered', 'Laptop repair registered']
     );
+
+    // Notify Admin members & Staff members
+    const notifMsg = `New Laptop repair request #${tracking} (${brand} ${model || ''}) submitted. Assigned to Admin & Staff for review.`;
+    for (const role of ['admin', 'staff', 'master']) {
+      try {
+        await pool.query(
+          `INSERT INTO notifications (user_role, title, message, type) VALUES (?, ?, ?, 'system')`,
+          [role, 'New Laptop Repair Submitted', notifMsg]
+        );
+      } catch (nErr) {
+        console.warn(`Role notification log skip for ${role}:`, nErr.message);
+      }
+    }
     
     res.status(201).json({ success: true, message: 'Repair registered', tracking_number: tracking, repair_id: result.insertId });
   } catch (err) {

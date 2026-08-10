@@ -31,7 +31,7 @@ router.post('/:id/enroll', authenticateToken, authorize('student'), async (req, 
     const studentId = req.user.id;
     const courseId = req.params.id;
     await pool.query(
-      'INSERT IGNORE INTO course_enrollments (student_id, course_id, enrolled_date, status) VALUES (?, ?, CURDATE(), ?)',
+      'INSERT IGNORE INTO course_enrollments (student_id, course_id, status) VALUES (?, ?, ?)',
       [studentId, courseId, 'enrolled']
     );
     res.json({ success: true, message: 'Enrolled' });
@@ -121,7 +121,7 @@ router.post('/:id/enroll', authenticateToken, async (req, res) => {
     const studentId = req.user.id;
     const courseId = req.params.id;
     await pool.query(
-      'INSERT INTO course_enrollments (student_id, course_id, enrolled_date, status) VALUES (?, ?, CURDATE(), ?)',
+      'INSERT INTO course_enrollments (student_id, course_id, status) VALUES (?, ?, ?)',
       [studentId, courseId, 'enrolled']
     );
     res.json({ success: true, message: 'Enrolled' });

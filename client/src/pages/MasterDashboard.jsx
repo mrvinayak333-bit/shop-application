@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Wrench, Clock, DollarSign, BookOpen, Briefcase, TrendingUp, Plus, Edit, Trash2, Lock, Unlock, Key, Eye, EyeOff, Search, Shield, UserCheck, Activity, Settings, ChevronRight, X, RefreshCw, Download, CreditCard, Image, Globe, FileText, Calendar, Landmark, Wallet, Award, MessageSquare, Megaphone, Send, Check, Smartphone } from 'lucide-react';
+import { Users, Wrench, Clock, DollarSign, BookOpen, Briefcase, TrendingUp, Plus, Edit, Trash2, Lock, Unlock, Key, Eye, EyeOff, Search, Shield, UserCheck, Activity, Settings, ChevronRight, X, RefreshCw, Download, CreditCard, Image, Globe, FileText, Calendar, Landmark, Wallet, Award, MessageSquare, Megaphone, Send, Check, Smartphone, Printer } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import api from '../lib/api';
 import Navbar from '../components/Navbar';
@@ -8,9 +8,13 @@ import StatusBadge from '../components/StatusBadge';
 import Loading from '../components/Loading';
 import ToastContainer, { showToast } from '../components/Toast';
 import RepairingCoursePurchase from '../components/RepairingCoursePurchase';
+import CustomerTrackingList from '../components/CustomerTrackingList';
+import MasterSettingsCenter from '../components/MasterSettingsCenter';
+import MasterCertificationDashboard from '../components/MasterCertificationDashboard';
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: TrendingUp },
+  { id: 'customer_tracking', label: 'Customer Tracking & Thermal Print', icon: Printer },
   { id: 'customers', label: 'Customers', icon: Users },
   { id: 'admins', label: 'Admins', icon: Shield },
   { id: 'technicians', label: 'Technicians', icon: Wrench },
@@ -134,6 +138,12 @@ export default function MasterDashboard() {
   const [manualPurchaseAmount, setManualPurchaseAmount] = useState('');
   const [manualPurchaseMethod, setManualPurchaseMethod] = useState('cash');
   const [savingManualPurchase, setSavingManualPurchase] = useState(false);
+
+  // Customer Control & Manual Password Reset state
+  const [customerPasswordModalOpen, setCustomerPasswordModalOpen] = useState(false);
+  const [selectedCustomerForPassword, setSelectedCustomerForPassword] = useState(null);
+  const [manualCustomerPassword, setManualCustomerPassword] = useState('');
+  const [savingCustomerPassword, setSavingCustomerPassword] = useState(false);
 
   const loadCertPending = async () => {
     try {
@@ -688,27 +698,103 @@ export default function MasterDashboard() {
   const openCreateModal = (type) => { setModalType(type); setEditItem(null); setModalOpen(true); };
   const openEditModal = (type, item) => { setModalType(type); setEditItem(item); setModalOpen(true); };
 
-  // CUSTOMER MANAGEMENT
+  // CUSTOMER CONTROL & MANUAL PASSWORD RESET HANDLERS
+  const handleOpenResetCustomerPasswordModal = (customer) => {
+    setSelectedCustomerForPassword(customer);
+    setManualCustomerPassword('');
+    setCustomerPasswordModalOpen(true);
+  };
+
+  const handleSaveCustomerPassword = async (e) => {
+    e.preventDefault();
+    if (!selectedCustomerForPassword || !manualCustomerPassword) {
+      return showToast('Please enter a new password', 'error');
+    }
+    if (manualCustomerPassword.trim().length < 4) {
+      return showToast('Password must be at least 4 characters long', 'error');
+    }
+
+    setSavingCustomerPassword(true);
+    try {
+      const res = await api.put(`/master/customers/${selectedCustomerForPassword.id}`, {
+        password: manualCustomerPassword.trim()
+      });
+      if (res && res.success) {
+        showToast(`Password for customer "${selectedCustomerForPassword.name}" reset successfully!`, 'success');
+        setCustomerPasswordModalOpen(false);
+        setSelectedCustomerForPassword(null);
+        setManualCustomerPassword('');
+        loadCustomers();
+      } else {
+        showToast(res?.message || 'Failed to reset password', 'error');
+      }
+    } catch (err) {
+      console.error('Customer password reset error:', err);
+      showToast('Error resetting customer password', 'error');
+    } finally {
+      setSavingCustomerPassword(false);
+    }
+  };
+
+  const handleSaveCustomer = async (formData) => {
+    try {
+      if (editItem) {
+        const res = await api.put(`/master/customers/${editItem.id}`, formData);
+        if (res && res.success) {
+          showToast('Customer updated successfully!', 'success');
+          loadCustomers();
+          setModalOpen(false);
+        } else {
+          showToast(res?.message || 'Error updating customer', 'error');
+        }
+      } else {
+        const res = await api.post('/customer/register', formData);
+        if (res && res.success) {
+          showToast('Customer created successfully!', 'success');
+          loadCustomers();
+          setModalOpen(false);
+        } else {
+          showToast(res?.message || 'Error creating customer', 'error');
+        }
+      }
+    } catch (err) {
+      console.error('Save customer error:', err);
+      showToast('Error saving customer', 'error');
+    }
+  };
+
   const handleToggleCustomerStatus = async (customer) => {
     const newStatus = customer.status === 'active' ? 'inactive' : 'active';
-    const res = await api.put(`/master/customers/${customer.id}`, { status: newStatus });
-    if (res.success) { showToast(`Customer ${newStatus === 'active' ? 'unlocked' : 'locked'}`); loadCustomers(); }
-    else showToast(res.message || 'Error', 'error');
+    try {
+      const res = await api.put(`/master/customers/${customer.id}`, {
+        status: newStatus
+      });
+      if (res && res.success) {
+        showToast(`Customer "${customer.name}" login status set to ${newStatus === 'active' ? 'Active (Allowed)' : 'Inactive (Blocked)'}`, 'success');
+        loadCustomers();
+      } else {
+        showToast(res?.message || 'Failed to update customer login status', 'error');
+      }
+    } catch (err) {
+      console.error('Toggle customer status error:', err);
+      showToast('Error updating customer login status', 'error');
+    }
   };
 
-  const handleResetCustomerPassword = async (id) => {
-    const newPass = generatePassword();
-    if (!confirm(`Reset password to: ${newPass}\n\nShare this password with the customer securely.`)) return;
-    const res = await api.put(`/master/customers/${id}`, { password: newPass });
-    if (res.success) showToast('Password reset successfully');
-    else showToast(res.message || 'Error', 'error');
-  };
-
-  const handleDeleteCustomer = async (id) => {
-    if (!confirm('Delete this customer? This action cannot be undone.')) return;
-    const res = await api.delete(`/master/customers/${id}`);
-    if (res.success) { showToast('Customer deleted'); loadCustomers(); }
-    else showToast(res.message || 'Error', 'error');
+  const handleDeleteCustomer = async (customerId) => {
+    if (!window.confirm('Are you sure you want to delete this customer? This action cannot be undone.')) return;
+    try {
+      const res = await api.delete(`/master/customers/${customerId}`);
+      if (res && res.success) {
+        showToast('Customer deleted successfully', 'success');
+        loadCustomers();
+      } else {
+        showToast(res?.message || 'Failed to delete customer', 'error');
+      }
+    } catch (err) {
+      console.error('Delete customer error:', err);
+      showToast('Error deleting customer', 'error');
+    }
   };
 
   // ADMIN CRUD
@@ -1025,46 +1111,75 @@ export default function MasterDashboard() {
         {/* CUSTOMERS TAB */}
         {activeTab === 'customers' && (
           <div>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
               <div className="relative flex-1 max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search customers..." className="input pl-9 py-2 text-sm" />
+                <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search customer by name, email, mobile..." className="input pl-9 py-2 text-sm" />
               </div>
-              <div className="text-sm text-gray-600">Total: {customers.length} customers</div>
+              <div className="flex items-center gap-3">
+                <div className="text-sm font-semibold text-gray-600">Total: {customers.length} Customers</div>
+                <button onClick={() => openCreateModal('customer')} className="btn-primary flex items-center gap-2 text-sm"><Plus className="w-4 h-4" /> Add Customer</button>
+              </div>
             </div>
             <div className="card overflow-x-auto">
               <table className="w-full text-sm">
-                <thead><tr className="border-b">
-                  <th className="text-left py-2 px-2">ID</th>
-                  <th className="text-left py-2 px-2">Name</th>
-                  <th className="text-left py-2 px-2">Mobile</th>
-                  <th className="text-left py-2 px-2">Email</th>
-                  <th className="text-left py-2 px-2">City</th>
-                  <th className="text-left py-2 px-2">Repairs</th>
-                  <th className="text-left py-2 px-2">Status</th>
-                  <th className="text-left py-2 px-2">Joined</th>
-                  <th className="text-left py-2 px-2">Actions</th>
+                <thead><tr className="border-b bg-gray-50">
+                  <th className="text-left py-2.5 px-3">ID</th>
+                  <th className="text-left py-2.5 px-3">Customer Name</th>
+                  <th className="text-left py-2.5 px-3">Mobile Number</th>
+                  <th className="text-left py-2.5 px-3">Email Address</th>
+                  <th className="text-left py-2.5 px-3">City</th>
+                  <th className="text-left py-2.5 px-3">Repairs</th>
+                  <th className="text-left py-2.5 px-3">Login Access</th>
+                  <th className="text-left py-2.5 px-3">Joined Date</th>
+                  <th className="text-center py-2.5 px-3">Login & Password Controls</th>
                 </tr></thead>
                 <tbody>
                   {customers.filter(c => c.name?.toLowerCase().includes(searchTerm.toLowerCase()) || c.mobile?.includes(searchTerm) || c.email?.toLowerCase().includes(searchTerm.toLowerCase())).map(c => (
                     <tr key={c.id} className="border-b hover:bg-gray-50">
-                      <td className="py-2 px-2 font-mono text-xs">{c.id}</td>
-                      <td className="py-2 px-2 font-medium">{c.name}</td>
-                      <td className="py-2 px-2">{c.mobile || 'N/A'}</td>
-                      <td className="py-2 px-2 text-gray-600">{c.email || 'N/A'}</td>
-                      <td className="py-2 px-2">{c.city || 'N/A'}</td>
-                      <td className="py-2 px-2">{c.total_repairs || 0}</td>
-                      <td className="py-2 px-2">
-                        <span className={`text-xs px-2 py-1 rounded-full ${c.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{c.status}</span>
+                      <td className="py-2.5 px-3 font-mono text-xs font-bold text-gray-500">#{c.id}</td>
+                      <td className="py-2.5 px-3 font-semibold text-gray-900">{c.name}</td>
+                      <td className="py-2.5 px-3 font-mono text-xs text-gray-700">{c.mobile || 'N/A'}</td>
+                      <td className="py-2.5 px-3 text-gray-600 text-xs">{c.email || 'N/A'}</td>
+                      <td className="py-2.5 px-3 text-gray-600">{c.city || 'N/A'}</td>
+                      <td className="py-2.5 px-3 font-bold text-emerald-600">{c.total_repairs || 0}</td>
+                      <td className="py-2.5 px-3">
+                        <span className={`text-xs px-2.5 py-1 rounded-full font-bold inline-flex items-center gap-1 ${c.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          {c.status === 'active' ? <UserCheck className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
+                          {c.status === 'active' ? 'Active' : 'Blocked'}
+                        </span>
                       </td>
-                      <td className="py-2 px-2 text-xs text-gray-500">{new Date(c.created_at).toLocaleDateString()}</td>
-                      <td className="py-2 px-2">
-                        <div className="flex items-center gap-1">
-                          <button onClick={() => handleToggleCustomerStatus(c)} className="p-1.5 hover:bg-amber-50 rounded text-amber-600" title={c.status === 'active' ? 'Lock' : 'Unlock'}>
+                      <td className="py-2.5 px-3 text-xs text-gray-500">{new Date(c.created_at).toLocaleDateString()}</td>
+                      <td className="py-2.5 px-3">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => handleToggleCustomerStatus(c)}
+                            className={`p-1.5 rounded transition ${c.status === 'active' ? 'hover:bg-amber-100 text-amber-700 bg-amber-50' : 'hover:bg-green-100 text-green-700 bg-green-50'}`}
+                            title={c.status === 'active' ? 'Lock / Block Customer Login' : 'Unlock / Enable Customer Login'}
+                          >
                             {c.status === 'active' ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
                           </button>
-                          <button onClick={() => handleResetCustomerPassword(c.id)} className="p-1.5 hover:bg-purple-50 rounded text-purple-600" title="Reset Password"><Key className="w-4 h-4" /></button>
-                          <button onClick={() => handleDeleteCustomer(c.id)} className="p-1.5 hover:bg-red-50 rounded text-red-600" title="Delete"><Trash2 className="w-4 h-4" /></button>
+                          <button
+                            onClick={() => handleOpenResetCustomerPasswordModal(c)}
+                            className="p-1.5 hover:bg-purple-100 text-purple-700 bg-purple-50 rounded transition flex items-center gap-1 text-xs font-semibold px-2"
+                            title="Reset Customer Password Manually"
+                          >
+                            <Key className="w-3.5 h-3.5" /> Reset Pass
+                          </button>
+                          <button
+                            onClick={() => openEditModal('customer', c)}
+                            className="p-1.5 hover:bg-blue-100 text-blue-700 bg-blue-50 rounded transition"
+                            title="Edit Customer Details"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCustomer(c.id)}
+                            className="p-1.5 hover:bg-red-100 text-red-700 bg-red-50 rounded transition"
+                            title="Delete Customer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -1841,7 +1956,13 @@ export default function MasterDashboard() {
                         </td>
                       </tr>
                     ))}
-                    {coursePurchases.length === 0 && <p className="text-center text-gray-400 py-12 text-xs">No course purchase requests found.</p>}
+                    {coursePurchases.length === 0 && (
+                      <tr>
+                        <td colSpan="8" className="text-center text-gray-400 py-12 text-xs">
+                          No course purchase requests found.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -2003,170 +2124,19 @@ export default function MasterDashboard() {
           </div>
         )}
 
+        {/* CUSTOMER TRACKING & THERMAL PRINT TAB */}
+        {activeTab === 'customer_tracking' && (
+          <CustomerTrackingList role="master" />
+        )}
+
         {/* WEBSITE SETTINGS TAB */}
         {activeTab === 'website' && (
-          <div className="space-y-6">
-            <div className="card">
-              <h2 className="text-lg font-semibold mb-4">General Website Settings</h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Company Name</label>
-                  <input value={websiteSettings.company_name || ''} onChange={e => handleSaveWebsiteSetting('company_name', e.target.value)} className="input" placeholder="SHREE RAAM MOBILE" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Contact Phone</label>
-                  <input value={websiteSettings.contact_phone || ''} onChange={e => handleSaveWebsiteSetting('contact_phone', e.target.value)} className="input" placeholder="+91 95522 10333" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Contact Email</label>
-                  <input value={websiteSettings.contact_email || ''} onChange={e => handleSaveWebsiteSetting('contact_email', e.target.value)} className="input" placeholder="info@shreeraammobile.com" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Address</label>
-                  <textarea value={websiteSettings.address || ''} onChange={e => handleSaveWebsiteSetting('address', e.target.value)} className="input" rows="2" placeholder="Solapur, Maharashtra" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">WhatsApp Number</label>
-                  <input value={websiteSettings.whatsapp || ''} onChange={e => handleSaveWebsiteSetting('whatsapp', e.target.value)} className="input" placeholder="919552210333" />
-                </div>
-              </div>
-            </div>
-
-            <div className="card">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold">Gallery Photos</h2>
-                <label className="btn-primary flex items-center gap-2 text-sm cursor-pointer">
-                  <Plus className="w-4 h-4" /> Upload Photo
-                  <input type="file" accept="image/*" onChange={e => { const fd = new FormData(); fd.append('photo', e.target.files[0]); fd.append('title', 'Gallery Photo'); handleUploadGalleryPhoto(fd); }} className="hidden" />
-                </label>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {galleryPhotos.map((photo, i) => (
-                  <div key={i} className="relative group">
-                    <img src={photo.photo_path} alt={photo.title} className="w-full h-32 object-cover rounded-lg" />
-                    <button onClick={() => handleDeleteGalleryPhoto(photo.id)} className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              {galleryPhotos.length === 0 && <p className="text-center text-gray-400 py-8">No gallery photos</p>}
-            </div>
-
-            <div className="card">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold">Slider Images</h2>
-                <label className="btn-primary flex items-center gap-2 text-sm cursor-pointer">
-                  <Plus className="w-4 h-4" /> Upload Slider
-                  <input type="file" accept="image/*" onChange={e => { const fd = new FormData(); fd.append('image', e.target.files[0]); fd.append('title', 'Slider Image'); fd.append('display_order', sliders.length); handleUploadSlider(fd); }} className="hidden" />
-                </label>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {sliders.map((slider, i) => (
-                  <div key={i} className="relative group">
-                    <img src={slider.image_path} alt={slider.title} className="w-full h-48 object-cover rounded-lg" />
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white p-2 rounded-b-lg">
-                      <p className="text-sm font-medium">{slider.title}</p>
-                      <p className="text-xs">{slider.subtitle}</p>
-                    </div>
-                    <button onClick={() => handleDeleteSlider(slider.id)} className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              {sliders.length === 0 && <p className="text-center text-gray-400 py-8">No slider images</p>}
-            </div>
-          </div>
+          <MasterSettingsCenter />
         )}
 
         {/* CERTIFICATES TAB */}
         {activeTab === 'certificates' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left template uploader */}
-            <div className="card lg:col-span-1 h-fit">
-              <h2 className="text-lg font-semibold mb-4">Certificate Template Designer</h2>
-              <form onSubmit={handleUploadTemplate} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Background Template (Image)</label>
-                  <input type="file" onChange={e => setTemplateFile(e.target.files[0])} className="input text-xs" accept="image/*" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Institute Logo</label>
-                  <input type="file" onChange={e => setLogoFile(e.target.files[0])} className="input text-xs" accept="image/*" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Institute Signature</label>
-                  <input type="file" onChange={e => setSigFile(e.target.files[0])} className="input text-xs" accept="image/*" />
-                </div>
-                <button type="submit" disabled={uploadingTemplate} className="btn-primary w-full py-2">
-                  {uploadingTemplate ? 'Saving assets...' : 'Update Template Assets'}
-                </button>
-              </form>
-
-              {certTemplate && (
-                <div className="mt-6 border-t pt-4">
-                  <span className="text-[10px] font-bold text-gray-400 block uppercase mb-2">Active Assets</span>
-                  <div className="space-y-2 text-xs text-gray-600">
-                    <p><strong>Background:</strong> <a href={certTemplate.template_file} target="_blank" className="text-blue-600 hover:underline">View file</a></p>
-                    {certTemplate.institute_logo && <p><strong>Logo:</strong> <a href={certTemplate.institute_logo} target="_blank" className="text-blue-600 hover:underline">View file</a></p>}
-                    {certTemplate.institute_signature && <p><strong>Signature:</strong> <a href={certTemplate.institute_signature} target="_blank" className="text-blue-600 hover:underline">View file</a></p>}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Right requests tracker */}
-            <div className="card lg:col-span-2">
-              <h2 className="text-lg font-semibold mb-4">Pending Course Completions & Certificates</h2>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-2 px-2">Student</th>
-                      <th className="text-left py-2 px-2">Course</th>
-                      <th className="text-left py-2 px-2">Status</th>
-                      <th className="text-right py-2 px-2">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {certPending.map(c => (
-                      <tr key={c.id} className="border-b hover:bg-gray-50">
-                        <td className="py-3 px-2">
-                          <div className="font-semibold text-gray-900">{c.student_name}</div>
-                          <div className="text-xs text-gray-400 font-mono">{c.student_code}</div>
-                        </td>
-                        <td className="py-3 px-2">{c.course_name}</td>
-                        <td className="py-3 px-2">
-                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
-                            c.status === 'approved' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
-                            c.status === 'rejected' ? 'bg-red-50 border-red-200 text-red-700' :
-                            'bg-amber-50 border-amber-200 text-amber-700'
-                          }`}>{c.status}</span>
-                        </td>
-                        <td className="py-3 px-2 text-right space-x-2 whitespace-nowrap">
-                          {c.status === 'pending_approval' ? (
-                            <>
-                              <button onClick={() => handleApproveCertificate(c.id, 'approved')} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1 px-2.5 rounded text-xs">Approve</button>
-                              <button onClick={() => handleApproveCertificate(c.id, 'rejected')} className="bg-red-600 hover:bg-red-700 text-white font-bold py-1 px-2.5 rounded text-xs">Reject</button>
-                            </>
-                          ) : (
-                            <>
-                              <a href={`/print-certificate/${c.id}`} target="_blank" className="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-1 px-2.5 rounded text-xs">Print</a>
-                              <button onClick={() => handleReissueCertificate(c.id)} className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-1 px-2.5 rounded text-xs">Reissue</button>
-                            </>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                    {certPending.length === 0 && (
-                      <tr><td colSpan="4" className="text-center text-gray-400 py-8">No certificate requests found</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+          <MasterCertificationDashboard />
         )}
 
         {/* SUPPORT TICKETS TAB */}
@@ -2390,12 +2360,91 @@ export default function MasterDashboard() {
 
       {/* CREATE/EDIT MODALS */}
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={`${editItem ? 'Edit' : 'Create'} ${modalType.charAt(0).toUpperCase() + modalType.slice(1)}`} size="lg">
+        {modalType === 'customer' && <CustomerForm editItem={editItem} onSave={handleSaveCustomer} onCancel={() => setModalOpen(false)} />}
         {modalType === 'admin' && <AdminForm editItem={editItem} onSave={handleSaveAdmin} onCancel={() => setModalOpen(false)} />}
         {modalType === 'technician' && <TechnicianForm editItem={editItem} onSave={handleSaveTechnician} onCancel={() => setModalOpen(false)} />}
         {modalType === 'student' && <StudentForm editItem={editItem} onSave={handleSaveStudent} onCancel={() => setModalOpen(false)} />}
         {modalType === 'staff' && <StaffForm editItem={editItem} onSave={handleSaveStaff} onCancel={() => setModalOpen(false)} />}
         {modalType === 'payment' && <PaymentMethodForm editItem={editItem} onSave={handleSavePaymentMethod} onCancel={() => setModalOpen(false)} />}
         {modalType === 'course' && <CourseForm editItem={editItem} onSave={handleSaveCourse} onCancel={() => setModalOpen(false)} />}
+      </Modal>
+
+      {/* CUSTOMER MANUAL PASSWORD RESET MODAL */}
+      <Modal
+        isOpen={customerPasswordModalOpen}
+        onClose={() => {
+          setCustomerPasswordModalOpen(false);
+          setSelectedCustomerForPassword(null);
+          setManualCustomerPassword('');
+        }}
+        title="🔑 Reset Customer Password Manually"
+      >
+        {selectedCustomerForPassword && (
+          <form onSubmit={handleSaveCustomerPassword} className="space-y-4">
+            <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-200">
+              <p className="text-xs text-gray-500 font-semibold">Customer Account:</p>
+              <p className="text-sm font-bold text-gray-900 capitalize">{selectedCustomerForPassword.name}</p>
+              <p className="text-xs text-gray-600 font-mono mt-0.5">
+                Mobile: {selectedCustomerForPassword.mobile || 'N/A'} | Email: {selectedCustomerForPassword.email || 'N/A'}
+              </p>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-gray-700">New Manual Password *</label>
+                <button
+                  type="button"
+                  onClick={() => setManualCustomerPassword(generatePassword())}
+                  className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 underline"
+                >
+                  ⚡ Auto-Generate Random
+                </button>
+              </div>
+              <div className="relative">
+                <input
+                  type={showPasswords['customer_pass'] ? 'text' : 'password'}
+                  value={manualCustomerPassword}
+                  onChange={e => setManualCustomerPassword(e.target.value)}
+                  placeholder="Enter new customer password (e.g. customer123)..."
+                  className="input text-xs pr-10 font-mono"
+                  required
+                  minLength={4}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPasswords(prev => ({ ...prev, customer_pass: !prev.customer_pass }))}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPasswords['customer_pass'] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <p className="text-[10px] text-gray-400 mt-1">
+                The customer will be able to log in using their registered Mobile or Email with this password.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t">
+              <button
+                type="button"
+                onClick={() => {
+                  setCustomerPasswordModalOpen(false);
+                  setSelectedCustomerForPassword(null);
+                  setManualCustomerPassword('');
+                }}
+                className="btn-secondary text-xs py-2 px-4"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={savingCustomerPassword}
+                className="btn-primary text-xs py-2 px-5 font-bold"
+              >
+                {savingCustomerPassword ? 'Resetting Password...' : 'Save & Reset Password'}
+              </button>
+            </div>
+          </form>
+        )}
       </Modal>
     </div>
   );
@@ -2743,6 +2792,81 @@ function StaffForm({ editItem, onSave, onCancel }) {
       <div className="flex gap-3 pt-2">
         <button type="submit" className="btn-primary flex-1">{editItem ? 'Update Staff Member' : 'Create Staff Member'}</button>
         <button type="button" onClick={onCancel} className="btn-secondary flex-1">Cancel</button>
+      </div>
+    </form>
+  );
+}
+
+// CUSTOMER FORM
+function CustomerForm({ editItem, onSave, onCancel }) {
+  const [form, setForm] = useState(editItem || {
+    name: '', email: '', mobile: '', address: '', city: '', password: generatePassword(), status: 'active'
+  });
+  const [showPass, setShowPass] = useState(false);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave(form);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Full Name *</label>
+        <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="input text-xs" required />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Mobile Number *</label>
+          <input value={form.mobile} onChange={e => setForm({...form, mobile: e.target.value})} className="input text-xs font-mono" required />
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Email Address</label>
+          <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="input text-xs" />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">City</label>
+          <input value={form.city} onChange={e => setForm({...form, city: e.target.value})} className="input text-xs" placeholder="e.g. Kolhapur" />
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Login Access Status</label>
+          <select value={form.status} onChange={e => setForm({...form, status: e.target.value})} className="input select text-xs">
+            <option value="active">Active (Login Allowed)</option>
+            <option value="inactive">Inactive (Login Blocked)</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Address</label>
+        <textarea value={form.address} onChange={e => setForm({...form, address: e.target.value})} className="input text-xs h-16" placeholder="Customer address..." />
+      </div>
+
+      <div>
+        <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Password {editItem ? '(leave blank to keep unchanged)' : '*'}</label>
+        <div className="relative">
+          <input
+            type={showPass ? 'text' : 'password'}
+            value={form.password || ''}
+            onChange={e => setForm({...form, password: e.target.value})}
+            className="input text-xs pr-10 font-mono"
+            placeholder={editItem ? 'Enter new password or leave empty' : 'Auto-generated'}
+            required={!editItem}
+          />
+          <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+            {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
+        {!editItem && <p className="text-xs text-gray-500 mt-1 font-mono">Auto-generated: {form.password}</p>}
+      </div>
+
+      <div className="flex gap-3 pt-2">
+        <button type="submit" className="btn-primary flex-1 text-xs py-2">{editItem ? 'Update Customer' : 'Create Customer'}</button>
+        <button type="button" onClick={onCancel} className="btn-secondary flex-1 text-xs py-2">Cancel</button>
       </div>
     </form>
   );

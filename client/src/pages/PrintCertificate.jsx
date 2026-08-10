@@ -103,7 +103,7 @@ export default function PrintCertificate() {
         <div>
           {/* Header */}
           <div className="text-amber-800 tracking-[0.2em] font-sans font-bold text-xs uppercase mb-2">Certificate of Completion</div>
-          <h1 className="text-4xl font-extrabold text-slate-800 tracking-wide font-sans mb-1">SHREE RAAM MOBILE</h1>
+          <h1 className="text-4xl font-extrabold text-slate-800 tracking-wide font-sans mb-1">SRM Mobaile Fixit</h1>
           <div className="text-slate-500 font-sans text-xs tracking-wider uppercase mb-6">Institute of Mobile Repairing & Technology</div>
           
           <div className="w-32 h-0.5 bg-amber-500 mx-auto mb-6"></div>

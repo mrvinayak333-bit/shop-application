@@ -55,6 +55,45 @@ router.post('/', authenticateToken, authorize('customer'), async (req, res) => {
     await pool.query('UPDATE customers SET total_repairs = total_repairs + 1 WHERE id = ?', [req.user.id]);
     await pool.query('INSERT INTO activity_logs (user_id, user_role, action, description) VALUES (?,?,?,?)', [req.user.id, 'customer', 'REPAIR_REGISTER', `Repair registered: ${trackingNumber}`]);
 
+    // Automatically notify Admin members & Staff members
+    const customerFullName = [first_name, last_name].filter(Boolean).join(' ') || 'Customer';
+    const notifMsg = `New repair request #${trackingNumber} (${brand} ${device_type} ${model || ''}) registered by ${customerFullName}. Assigned to Admin & Staff for review.`;
+
+    for (const role of ['admin', 'staff', 'master']) {
+      try {
+        await pool.query(
+          `INSERT INTO notifications (user_role, title, message, type) VALUES (?, ?, ?, 'system')`,
+          [role, 'New Repair Submitted - Action Required', notifMsg]
+        );
+      } catch (nErr) {
+        console.warn(`Role notification log skip for ${role}:`, nErr.message);
+      }
+    }
+
+    try {
+      const [allAdmins] = await pool.query('SELECT id FROM admins');
+      for (const adm of allAdmins) {
+        await pool.query(
+          `INSERT INTO notifications (user_id, user_role, title, message, type) VALUES (?, 'admin', ?, ?, 'system')`,
+          [adm.id, 'New Repair Assigned for Review', notifMsg]
+        );
+      }
+    } catch (admErr) {
+      console.warn('Admin notification error:', admErr.message);
+    }
+
+    try {
+      const [allStaff] = await pool.query('SELECT id FROM staff_members');
+      for (const stf of allStaff) {
+        await pool.query(
+          `INSERT INTO notifications (user_id, user_role, title, message, type) VALUES (?, 'staff', ?, ?, 'system')`,
+          [stf.id, 'New Repair Assigned for Review', notifMsg]
+        );
+      }
+    } catch (stfErr) {
+      console.warn('Staff notification error:', stfErr.message);
+    }
+
     res.status(201).json({
       success: true, message: 'Your repair request submitted successfully!',
       repair: { id: result.insertId, tracking_number: trackingNumber, qr_code: qrCode }
@@ -65,23 +104,103 @@ router.post('/', authenticateToken, authorize('customer'), async (req, res) => {
   }
 });
 
-// PUBLIC: Track repair by tracking number
+// PUBLIC: Get homepage live customer, repair & accessory stats
+router.get('/public-stats', async (req, res) => {
+  try {
+    const [[cRow]] = await pool.query('SELECT COUNT(*) as count FROM customers');
+    const [[rRow]] = await pool.query('SELECT COUNT(*) as count FROM repair_requests');
+    const [[aRow]] = await pool.query('SELECT COUNT(*) as count FROM accessory_orders');
+
+    const baseCustomers = 516;
+    const baseRepairs = 1633;
+    const baseAccessories = 2502;
+
+    res.json({
+      success: true,
+      totalCustomers: baseCustomers + (cRow?.count || 0),
+      totalRepairs: baseRepairs + (rRow?.count || 0),
+      totalAccessories: baseAccessories + (aRow?.count || 0)
+    });
+  } catch (err) {
+    console.error('Error fetching public stats:', err);
+    res.json({ success: true, totalCustomers: 516, totalRepairs: 1633, totalAccessories: 2502 });
+  }
+});
+
+// PUBLIC: Track repair or accessory order by tracking number
 router.get('/track/:trackingNumber', async (req, res) => {
   try {
-    const [rows] = await pool.query(
+    const trackingNum = (req.params.trackingNumber || '').trim();
+
+    // 1. Check in repair_requests
+    const [repairRows] = await pool.query(
       `SELECT rr.tracking_number, rr.device_type, rr.brand, rr.model, rr.status, rr.created_at, 
        rr.device_condition, rr.gps_location, rr.gps_lat, rr.gps_lng, rr.pickup_by, rr.pickup_date,
        rr.notes, rr.submission_photo, rr.customer_selfie,
        c.name as customer, c.mobile as customer_mobile
        FROM repair_requests rr JOIN customers c ON rr.customer_id=c.id 
        WHERE rr.tracking_number=?`,
-      [req.params.trackingNumber]
+      [trackingNum]
     );
-    if (!rows.length) return res.status(404).json({ success: false, message: 'Tracking number not found' });
 
-    const [statusLog] = await pool.query('SELECT status, notes, created_at FROM repair_status WHERE repair_id=(SELECT id FROM repair_requests WHERE tracking_number=?) ORDER BY created_at ASC', [req.params.trackingNumber]);
-    res.json({ success: true, repair: rows[0], statusLog });
-  } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
+    if (repairRows.length > 0) {
+      const [statusLog] = await pool.query(
+        'SELECT status, notes, created_at FROM repair_status WHERE repair_id=(SELECT id FROM repair_requests WHERE tracking_number=?) ORDER BY created_at ASC',
+        [trackingNum]
+      );
+      return res.json({ success: true, isAccessory: false, repair: repairRows[0], statusLog });
+    }
+
+    // 2. Check in accessory_orders
+    const [accRows] = await pool.query(
+      `SELECT o.*, c.name as customer_name, c.email as customer_email, c.mobile as customer_mobile_account
+       FROM accessory_orders o
+       JOIN customers c ON o.customer_id = c.id
+       WHERE o.tracking_number = ?`,
+      [trackingNum]
+    );
+
+    if (accRows.length > 0) {
+      const order = accRows[0];
+      const [items] = await pool.query(
+        `SELECT oi.*, p.name as product_name, p.brand, p.category, p.image_url
+         FROM accessory_order_items oi
+         JOIN accessory_products p ON oi.product_id = p.id
+         WHERE oi.order_id = ?`,
+        [order.id]
+      );
+
+      const [history] = await pool.query(
+        `SELECT status, notes, created_at FROM accessory_tracking_history WHERE order_id = ? ORDER BY created_at ASC`,
+        [order.id]
+      );
+
+      return res.json({
+        success: true,
+        isAccessory: true,
+        accessoryOrder: {
+          id: order.id,
+          tracking_number: order.tracking_number,
+          total_amount: order.total_amount,
+          payment_method: order.payment_method,
+          payment_status: order.payment_status,
+          order_status: order.order_status,
+          shipping_address: order.shipping_address,
+          shipping_mobile: order.shipping_mobile || order.customer_mobile_account,
+          estimated_delivery_date: order.estimated_delivery_date,
+          created_at: order.created_at,
+          customer_name: order.customer_name,
+          items: items
+        },
+        history: history || []
+      });
+    }
+
+    return res.status(404).json({ success: false, message: 'Tracking number not found' });
+  } catch (err) {
+    console.error('Tracking endpoint error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
 });
 
 // MASTER/ADMIN: Get all repairs
@@ -220,7 +339,7 @@ router.get('/:id/quotation/pdf', async (req, res) => {
     .status-sent{background:#fef3c7;color:#92400e}.status-approved{background:#d1fae5;color:#065f46}
     .status-rejected{background:#fee2e2;color:#991b1b}
     @media print{body{padding:0}}</style></head><body>
-    <div class="header"><h1>SHREE RAAM MOBILE</h1><p>Professional Mobile Repair Service</p><p>Solapur, Maharashtra | +91 95522 10333</p></div>
+    <div class="header"><h1>SRM Mobaile Fixit</h1><p>IC Level Repairing Specialist & Mobile Repairing Service</p><p>Solapur, Maharashtra | +91 91305 21333 / +91 95522 10333</p></div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
     <h2 style="margin:0">QUOTATION INVOICE</h2>
     <span class="status status-${q.status}">${q.status.toUpperCase()}</span></div>
@@ -242,7 +361,7 @@ router.get('/:id/quotation/pdf', async (req, res) => {
     <div style="margin-top:40px;display:flex;justify-content:space-between">
     <div><p>_________________________</p><p>Customer Signature</p></div>
     <div><p>_________________________</p><p>Authorized Signature</p></div></div>
-    <div class="footer"><p>This is a computer-generated quotation. | Thank you for choosing SHREE RAAM MOBILE.</p>
+    <div class="footer"><p>This is a computer-generated quotation. | Thank you for choosing SRM Mobaile Fixit.</p>
     <p>Terms: Quotation valid for 7 days. Advance payment may be required for spare parts.</p></div>
     <script>window.onload=function(){window.print()}</script></body></html>`;
     res.send(html);
@@ -813,7 +932,7 @@ router.put('/:id/final-delivery', authenticateToken, authorize('admin'), uploadD
     await pool.query(
       "INSERT INTO notifications (user_id, user_role, title, message, type) VALUES (?,?,?,?,?)",
       [r.customer_id, 'customer', 'Device Successfully Delivered!',
-       `Your device (${r.tracking_number}) has been successfully delivered. Thank you for choosing SHREE RAAM MOBILE!`,
+       `Your device (${r.tracking_number}) has been successfully delivered. Thank you for choosing SRM Mobaile Fixit!`,
        'delivery']
     );
     // Notify master

@@ -35,6 +35,37 @@ router.get('/products', async (req, res) => {
   }
 });
 
+// Fetch all accessory categories
+router.get('/categories', async (req, res) => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS accessory_categories (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL UNIQUE,
+        description TEXT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    const [dbCats] = await pool.query("SELECT * FROM accessory_categories ORDER BY name ASC");
+    const [prodCats] = await pool.query("SELECT DISTINCT category FROM accessory_products WHERE category IS NOT NULL AND category != ''");
+    
+    const categoryMap = new Map();
+    dbCats.forEach(c => categoryMap.set(c.name, { id: c.id, name: c.name, source: 'db' }));
+    prodCats.forEach(p => {
+      if (!categoryMap.has(p.category)) {
+        categoryMap.set(p.category, { id: null, name: p.category, source: 'product' });
+      }
+    });
+
+    const categoriesList = Array.from(categoryMap.values());
+    res.json({ success: true, categories: categoriesList });
+  } catch (err) {
+    console.error('Error fetching categories:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 // 2. Product Details
 router.get('/products/:id', async (req, res) => {
   try {
@@ -375,8 +406,6 @@ router.get('/orders', authorize('customer'), async (req, res) => {
 // ADMIN / MASTER INVENTORY & ORDERS MANAGEMENT
 // ======================================================================
 
-router.use(authorize('admin', 'master'));
-
 // 9.5 Upload product image
 router.post('/admin/upload', uploadAccessory.single('image'), (req, res) => {
   try {
@@ -388,6 +417,52 @@ router.post('/admin/upload', uploadAccessory.single('image'), (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Upload failed' });
+  }
+});
+
+// 9.6 Create Category
+router.post('/admin/categories', async (req, res) => {
+  try {
+    const { name, description } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, message: 'Category name is required' });
+    }
+
+    const cleanName = name.trim();
+    
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS accessory_categories (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL UNIQUE,
+        description TEXT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    const [result] = await pool.query(
+      "INSERT INTO accessory_categories (name, description) VALUES (?, ?) ON DUPLICATE KEY UPDATE description = VALUES(description)",
+      [cleanName, description || null]
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Category created successfully',
+      category: { id: result.insertId, name: cleanName }
+    });
+  } catch (err) {
+    console.error('Error creating category:', err);
+    res.status(500).json({ success: false, message: 'Server error creating category' });
+  }
+});
+
+// 9.7 Delete Category
+router.delete('/admin/categories/:id', async (req, res) => {
+  try {
+    await pool.query("DELETE FROM accessory_categories WHERE id = ?", [req.params.id]);
+    res.json({ success: true, message: 'Category deleted successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 

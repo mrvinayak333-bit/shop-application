@@ -60,9 +60,20 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2">
-            <Smartphone className="w-8 h-8 text-emerald-600" />
-            <span className="text-lg font-bold text-gray-900">SHREE RAAM MOBILE</span>
+          <Link to="/" className="flex items-center gap-2.5 group">
+            <img 
+              src="/srm_navbar_logo.png" 
+              alt="SRM Mobaile Fixit" 
+              className="w-10 h-10 rounded-xl object-contain bg-white border border-emerald-500/40 shadow-xs p-0.5 group-hover:scale-105 transition" 
+            />
+            <div className="flex flex-col">
+              <span className="text-base font-black text-gray-900 leading-none tracking-tight">
+                SRM Mobaile Fixit
+              </span>
+              <span className="text-[9px] font-extrabold text-emerald-600 tracking-wider uppercase mt-0.5">
+                IC LEVEL REPAIRING SPECIALIST
+              </span>
+            </div>
           </Link>
  
           {/* Desktop Menu */}

@@ -108,9 +108,9 @@ export default function EnrolledCourses() {
                     <p className="text-sm text-gray-500">{c.description}</p>
                     <p className="text-xs text-gray-400 mt-1">Status: {c.enrollment_status || c.status || c.status}</p>
                   </div>
-                  <div>
-                    <a className="btn-primary text-sm" href={`/course/${c.course_id || c.id}`}>Open Course</a>
-                  </div>
+                    <div>
+                      <a className="btn-primary text-sm" href={`/courses/${c.course_id || c.id}`}>Open Course</a>
+                    </div>
                 </div>
               </div>
             ))

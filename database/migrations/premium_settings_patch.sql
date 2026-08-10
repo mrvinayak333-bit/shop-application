@@ -8,14 +8,14 @@ INSERT IGNORE INTO settings (setting_key, setting_value, description) VALUES
 ('smtp_user', 'default_smtp_username_here', 'SMTP mail server authenticate username'),
 ('smtp_pass', 'default_smtp_password_here', 'SMTP mail server authenticate password'),
 ('smtp_sender', 'no-reply@repairsystem.com', 'SMTP mail sender address'),
-('welcome_email_template', 'Hello {name},\n\nWelcome to SHREE RAAM MOBILE repair & learning portal! Your registration was successful.\n\nBest Regards,\nSHREE RAAM MOBILE Team', 'Welcome message email template text'),
-('payment_email_template', 'Hello {name},\n\nWe have successfully received your payment proof for course "{course_title}". Our support staff will verify and enroll you shortly.\n\nBest Regards,\nSHREE RAAM MOBILE Team', 'Payment confirmation email template text'),
-('course_approval_email_template', 'Hello {name},\n\nCongratulations! Your enrollment request for "{course_title}" has been approved. You can now access all learning videos and materials in your dashboard.\n\nHappy Learning,\nSHREE RAAM MOBILE Team', 'Course enrollment approval template text'),
-('reset_password_email_template', 'Hello {name},\n\nYou requested a password reset. Please use the following temporary password to log in and change your details:\n\nTemporary Password: {temp_password}\n\nBest Regards,\nSHREE RAAM MOBILE Team', 'Password reset email template text');
+('welcome_email_template', 'Hello {name},\n\nWelcome to SRM Mobaile Fixit repair & learning portal! Your registration was successful.\n\nBest Regards,\nSRM Mobaile Fixit Team', 'Welcome message email template text'),
+('payment_email_template', 'Hello {name},\n\nWe have successfully received your payment proof for course "{course_title}". Our support staff will verify and enroll you shortly.\n\nBest Regards,\nSRM Mobaile Fixit Team', 'Payment confirmation email template text'),
+('course_approval_email_template', 'Hello {name},\n\nCongratulations! Your enrollment request for "{course_title}" has been approved. You can now access all learning videos and materials in your dashboard.\n\nHappy Learning,\nSRM Mobaile Fixit Team', 'Course enrollment approval template text'),
+('reset_password_email_template', 'Hello {name},\n\nYou requested a password reset. Please use the following temporary password to log in and change your details:\n\nTemporary Password: {temp_password}\n\nBest Regards,\nSRM Mobaile Fixit Team', 'Password reset email template text');
 
 -- 2. Seed website settings for Homepage dynamic blocks
 INSERT IGNORE INTO website_settings (setting_key, setting_value) VALUES
-('hero_title', 'SHREE RAAM MOBILE'),
+('hero_title', 'SRM Mobaile Fixit'),
 ('hero_subtitle', 'Professional Chip-level Device Repair & Training Institute'),
 ('theme_color', '#10b981'),
 ('contact_email', 'contact@repairsystem.com'),

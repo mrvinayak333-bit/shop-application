@@ -7,6 +7,7 @@ import Navbar from '../components/Navbar';
 import StatusBadge from '../components/StatusBadge';
 import Loading from '../components/Loading';
 import ToastContainer, { showToast } from '../components/Toast';
+import Timeline from '../components/Timeline';
 
 const statusPathways = [
   { value: 'received_center', label: 'Device Received', icon: '📦' },
@@ -90,6 +91,16 @@ export default function RepairDetail() {
       if (res.success) {
         setData(res);
         setNewStatus(res.repair.status);
+
+        // Autofill Customer Name, Device Name, and IMEI automatically
+        const custName = res.quotation?.customer_name || res.repair.customer || res.repair.customer_name || `${res.repair.first_name || ''} ${res.repair.last_name || ''}`.trim();
+        const devName = res.quotation?.device_name || `${res.repair.brand || ''} ${res.repair.model || ''}`.trim();
+        const imeiNum = res.quotation?.imei || res.repair.imei || '';
+
+        setQuotationCustomerName(custName);
+        setQuotationDeviceName(devName);
+        setQuotationImei(imeiNum);
+
         if (res.quotation) {
           const q = res.quotation;
           setQuotationDiagnosis(q.diagnosis || '');
@@ -100,9 +111,9 @@ export default function RepairDetail() {
           setQuotationOtherCharges(q.other_charges || '');
           setQuotationDiscount(q.discount || '');
           setQuotationNotes(q.notes || '');
-          setQuotationCustomerName(q.customer_name || '');
-          setQuotationDeviceName(q.device_name || '');
-          setQuotationImei(q.imei || '');
+          if (q.customer_name) setQuotationCustomerName(q.customer_name);
+          if (q.device_name) setQuotationDeviceName(q.device_name);
+          if (q.imei) setQuotationImei(q.imei);
         }
       } else {
         showToast(res.message || 'Failed to load repair details', 'error');
@@ -578,15 +589,30 @@ export default function RepairDetail() {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Customer Name</label>
-                      <input value={quotationCustomerName} onChange={e => setQuotationCustomerName(e.target.value)} placeholder="Customer name" className="input" />
+                      <input 
+                        value={quotationCustomerName || repair.customer || repair.customer_name || `${repair.first_name || ''} ${repair.last_name || ''}`.trim()} 
+                        onChange={e => setQuotationCustomerName(e.target.value)} 
+                        placeholder="Customer name" 
+                        className="input font-semibold" 
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Device Name</label>
-                      <input value={quotationDeviceName} onChange={e => setQuotationDeviceName(e.target.value)} placeholder="e.g., Samsung Galaxy S21" className="input" />
+                      <input 
+                        value={quotationDeviceName || `${repair.brand || ''} ${repair.model || ''}`.trim()} 
+                        onChange={e => setQuotationDeviceName(e.target.value)} 
+                        placeholder="e.g., Samsung Galaxy S21" 
+                        className="input font-semibold" 
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">IMEI</label>
-                      <input value={quotationImei} onChange={e => setQuotationImei(e.target.value)} placeholder="IMEI number" className="input" />
+                      <input 
+                        value={quotationImei || repair.imei || ''} 
+                        onChange={e => setQuotationImei(e.target.value)} 
+                        placeholder="IMEI number" 
+                        className="input font-mono font-semibold" 
+                      />
                     </div>
                   </div>
                   <div>
@@ -909,40 +935,8 @@ export default function RepairDetail() {
 
         {/* Timeline Tab */}
         {activeTab === 'timeline' && (
-          <div className="space-y-4">
-            <div className="card">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Clock className="w-5 h-5 text-blue-600" /> Repair Timeline
-              </h2>
-              <div className="space-y-4">
-                {statusLog && statusLog.length > 0 ? (
-                  statusLog.map((log, i) => (
-                    <div key={log.id || i} className="flex gap-4">
-                      <div className="flex flex-col items-center">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                          i === statusLog.length - 1 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
-                        }`}>
-                          {statusPathways.find(p => p.value === log.status)?.icon || '•'}
-                        </div>
-                        {i < statusLog.length - 1 && <div className="w-0.5 h-full bg-gray-200 mt-1" />}
-                      </div>
-                      <div className="flex-1 pb-4">
-                        <p className="font-semibold text-gray-900">
-                          {statusPathways.find(p => p.value === log.status)?.label || log.status}
-                        </p>
-                        {log.notes && <p className="text-sm text-gray-600 mt-1">{log.notes}</p>}
-                        <p className="text-xs text-gray-400 mt-1">
-                          {new Date(log.created_at).toLocaleString()}
-                          {log.updated_by_role && ` • by ${log.updated_by_role}`}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-center text-gray-400 py-8">No timeline entries yet</p>
-                )}
-              </div>
-            </div>
+          <div className="card p-6">
+            <Timeline currentStatus={repair?.status} statusLog={statusLog} />
           </div>
         )}
       </main>

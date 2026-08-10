@@ -7,6 +7,7 @@ import Navbar from '../components/Navbar';
 import StatusBadge from '../components/StatusBadge';
 import Loading from '../components/Loading';
 import ToastContainer, { showToast } from '../components/Toast';
+import CustomerTrackingList from '../components/CustomerTrackingList';
 
 export default function TechnicianDashboard() {
   const { user, isAuthenticated } = useAuth();
@@ -63,6 +64,7 @@ export default function TechnicianDashboard() {
 
   const tabs = [
     { id: 'overview', label: 'Overview' },
+    { id: 'customer_tracking', label: '📷 Barcode & Tracking' },
     { id: 'repairs', label: 'My Repairs' },
     { id: 'earnings', label: 'Earnings' },
     { id: 'performance', label: 'Performance' },
@@ -197,6 +199,11 @@ export default function TechnicianDashboard() {
               </div>
             )}
           </div>
+        )}
+
+        {/* Barcode & Customer Tracking Tab */}
+        {activeTab === 'customer_tracking' && (
+          <CustomerTrackingList role="technician" />
         )}
 
         {/* My Repairs Tab */}

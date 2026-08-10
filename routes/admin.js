@@ -21,7 +21,191 @@ const pickupStorage = multer.diskStorage({
 const uploadPickup = multer({ storage: pickupStorage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 router.use(authenticateToken);
-router.use(authorize('admin'));
+router.use(authorize('admin', 'staff', 'master', 'technician'));
+
+// ======================================================================
+// CUSTOMER TRACKING & PRINT DETAILS LISTING (ADMIN + STAFF)
+// ======================================================================
+router.get('/customer-tracking', async (req, res) => {
+  try {
+    const { search, status, technician_id, payment_status, start_date, end_date, record_type } = req.query;
+
+    // 1. Fetch Repair Requests
+    let repairQuery = `
+      SELECT 
+        'repair' AS record_type,
+        rr.id,
+        rr.tracking_number AS token_number,
+        COALESCE(NULLIF(TRIM(c.name), ''), NULLIF(TRIM(CONCAT(COALESCE(rr.first_name,''), ' ', COALESCE(rr.last_name,''))), ''), 'Customer') AS customer_name,
+        COALESCE(NULLIF(c.mobile, ''), rr.customer_mobile, 'N/A') AS phone_number,
+        COALESCE(c.alternate_mobile, 'N/A') AS alt_phone_number,
+        COALESCE(NULLIF(c.address, ''), NULLIF(rr.customer_address, ''), NULLIF(rr.pickup_address, ''), 'N/A') AS customer_address,
+        COALESCE(rr.brand, 'Device') AS device_brand,
+        COALESCE(rr.model, rr.device_type, 'Model') AS device_model,
+        COALESCE(rr.device_type, 'Mobile') AS device_type,
+        COALESCE(rr.imei, 'N/A') AS imei,
+        rr.status AS repair_status,
+        t.id AS technician_id,
+        COALESCE(t.name, 'Unassigned') AS technician_name,
+        COALESCE(rr.estimated_cost, 0) AS total_amount,
+        COALESCE(rr.advance_amount, 0) AS paid_amount,
+        (GREATEST(0, COALESCE(rr.estimated_cost, 0) - COALESCE(rr.advance_amount, 0))) AS remaining_balance,
+        CASE 
+          WHEN (COALESCE(rr.estimated_cost, 0) - COALESCE(rr.advance_amount, 0)) <= 0 AND COALESCE(rr.estimated_cost, 0) > 0 THEN 'paid'
+          WHEN COALESCE(rr.advance_amount, 0) > 0 THEN 'partial'
+          ELSE 'unpaid'
+        END AS payment_status,
+        DATE_FORMAT(DATE_ADD(rr.created_at, INTERVAL 3 DAY), '%Y-%m-%d') AS expected_delivery_date,
+        rr.created_at
+      FROM repair_requests rr
+      LEFT JOIN customers c ON rr.customer_id = c.id
+      LEFT JOIN technicians t ON rr.assigned_technician = t.id
+      WHERE 1=1
+    `;
+
+    const repairParams = [];
+    if (search && search.trim()) {
+      const q = `%${search.trim()}%`;
+      repairQuery += ` AND (
+        rr.tracking_number LIKE ? 
+        OR c.name LIKE ? 
+        OR rr.first_name LIKE ? 
+        OR rr.last_name LIKE ? 
+        OR c.mobile LIKE ? 
+        OR c.alternate_mobile LIKE ? 
+        OR rr.customer_mobile LIKE ? 
+        OR rr.model LIKE ? 
+        OR rr.brand LIKE ?
+      )`;
+      repairParams.push(q, q, q, q, q, q, q, q, q);
+    }
+
+    if (status && status !== 'ALL') {
+      repairQuery += ` AND rr.status = ?`;
+      repairParams.push(status);
+    }
+
+    if (technician_id && technician_id !== 'ALL') {
+      repairQuery += ` AND rr.assigned_technician = ?`;
+      repairParams.push(technician_id);
+    }
+
+    if (payment_status && payment_status !== 'ALL') {
+      if (payment_status === 'paid') {
+        repairQuery += ` AND (COALESCE(rr.estimated_cost, 0) - COALESCE(rr.advance_amount, 0)) <= 0 AND COALESCE(rr.estimated_cost, 0) > 0`;
+      } else if (payment_status === 'partial') {
+        repairQuery += ` AND COALESCE(rr.advance_amount, 0) > 0 AND (COALESCE(rr.estimated_cost, 0) - COALESCE(rr.advance_amount, 0)) > 0`;
+      } else if (payment_status === 'unpaid') {
+        repairQuery += ` AND COALESCE(rr.advance_amount, 0) = 0`;
+      }
+    }
+
+    if (start_date) {
+      repairQuery += ` AND DATE(rr.created_at) >= ?`;
+      repairParams.push(start_date);
+    }
+
+    if (end_date) {
+      repairQuery += ` AND DATE(rr.created_at) <= ?`;
+      repairParams.push(end_date);
+    }
+
+    let repairRows = [];
+    if (!record_type || record_type === 'ALL' || record_type === 'repair') {
+      [repairRows] = await pool.query(repairQuery, repairParams);
+    }
+
+    // 2. Fetch Accessory Orders
+    let accessoryRows = [];
+    if (!record_type || record_type === 'ALL' || record_type === 'accessory') {
+      try {
+        let accQuery = `
+          SELECT 
+            'accessory_order' AS record_type,
+            ao.id,
+            ao.tracking_number AS token_number,
+            COALESCE(c.name, 'Customer') AS customer_name,
+            COALESCE(ao.shipping_mobile, c.mobile, 'N/A') AS phone_number,
+            COALESCE(c.alternate_mobile, 'N/A') AS alt_phone_number,
+            COALESCE(ao.shipping_address, c.address, 'N/A') AS customer_address,
+            'Accessory Store' AS device_brand,
+            'Store Order' AS device_model,
+            'Accessories' AS device_type,
+            'N/A' AS imei,
+            ao.order_status AS repair_status,
+            NULL AS technician_id,
+            'Store Executive' AS technician_name,
+            COALESCE(ao.total_amount, 0) AS total_amount,
+            CASE WHEN ao.payment_status = 'completed' THEN COALESCE(ao.total_amount, 0) ELSE 0 END AS paid_amount,
+            CASE WHEN ao.payment_status = 'completed' THEN 0 ELSE COALESCE(ao.total_amount, 0) END AS remaining_balance,
+            CASE WHEN ao.payment_status = 'completed' THEN 'paid' ELSE 'unpaid' END AS payment_status,
+            DATE_FORMAT(COALESCE(ao.estimated_delivery_date, DATE_ADD(ao.created_at, INTERVAL 2 DAY)), '%Y-%m-%d') AS expected_delivery_date,
+            ao.created_at
+          FROM accessory_orders ao
+          LEFT JOIN customers c ON ao.customer_id = c.id
+          WHERE 1=1
+        `;
+
+        const accParams = [];
+        if (search && search.trim()) {
+          const q = `%${search.trim()}%`;
+          accQuery += ` AND (
+            ao.tracking_number LIKE ? 
+            OR c.name LIKE ? 
+            OR c.mobile LIKE ? 
+            OR ao.shipping_mobile LIKE ? 
+            OR ao.shipping_address LIKE ?
+          )`;
+          accParams.push(q, q, q, q, q);
+        }
+
+        if (status && status !== 'ALL') {
+          accQuery += ` AND ao.order_status = ?`;
+          accParams.push(status);
+        }
+
+        if (start_date) {
+          accQuery += ` AND DATE(ao.created_at) >= ?`;
+          accParams.push(start_date);
+        }
+
+        if (end_date) {
+          accQuery += ` AND DATE(ao.created_at) <= ?`;
+          accParams.push(end_date);
+        }
+
+        [accessoryRows] = await pool.query(accQuery, accParams);
+
+        // Fetch items for each order
+        for (let row of accessoryRows) {
+          const [items] = await pool.query(
+            `SELECT aoi.quantity, aoi.price, ap.name, ap.brand, ap.category
+             FROM accessory_order_items aoi
+             JOIN accessory_products ap ON aoi.product_id = ap.id
+             WHERE aoi.order_id = ?`,
+            [row.id]
+          );
+          row.order_items = items;
+          if (items && items.length > 0) {
+            row.device_brand = items[0].name;
+            row.device_model = items.length > 1 ? `${items.length} Accessories` : `Qty: ${items[0].quantity}`;
+          }
+        }
+      } catch (accErr) {
+        console.error('Accessory orders query notice:', accErr.message);
+      }
+    }
+
+    const combined = [...repairRows, ...accessoryRows].sort(
+      (a, b) => new Date(b.created_at) - new Date(a.created_at)
+    );
+
+    res.json({ success: true, trackingRecords: combined });
+  } catch (err) {
+    console.error('Customer tracking list error:', err);
+    res.status(500).json({ success: false, message: 'Server error fetching tracking records' });
+  }
+});
 
 router.get('/dashboard', async (req, res) => {
   try {

@@ -22,37 +22,46 @@ router.post('/login', async (req, res) => {
     switch (role) {
       case 'master':
         if (!email) return res.status(400).json({ success: false, message: 'Email is required' });
-        [user] = await pool.query('SELECT * FROM master_users WHERE email = ? AND status = ?', [email, 'active']);
+        [user] = await pool.query('SELECT * FROM master_users WHERE (email = ? OR mobile = ?) AND (status = "active" OR status IS NULL)', [email, email]);
         table = 'master_users';
         break;
       case 'admin':
         if (!email) return res.status(400).json({ success: false, message: 'Email is required' });
-        [user] = await pool.query('SELECT * FROM admins WHERE email = ? AND status = ?', [email, 'active']);
+        [user] = await pool.query('SELECT * FROM admins WHERE (email = ? OR mobile = ?) AND (status = "active" OR status IS NULL)', [email, email]);
         table = 'admins';
         break;
       case 'technician':
         if (!email) return res.status(400).json({ success: false, message: 'Email is required' });
-        [user] = await pool.query('SELECT * FROM technicians WHERE email = ? AND status = ?', [email, 'active']);
+        [user] = await pool.query('SELECT * FROM technicians WHERE (email = ? OR mobile = ?) AND (status = "active" OR status IS NULL)', [email, email]);
         table = 'technicians';
         break;
       case 'customer':
-        if (email) {
-          [user] = await pool.query('SELECT * FROM customers WHERE email = ? AND status = ?', [email, 'active']);
-        } else {
-          const { mobile, name } = req.body;
-          if (!mobile) return res.status(400).json({ success: false, message: 'Mobile number is required' });
-          [user] = await pool.query('SELECT * FROM customers WHERE mobile = ? AND status = ?', [mobile, 'active']);
-        }
+        const inputVal = email || req.body.mobile || '';
+        if (!inputVal) return res.status(400).json({ success: false, message: 'Mobile number or email is required' });
+        
+        const cleanMob = inputVal.replace(/[\s\-\+\(\)]/g, '');
+        const last10Digits = cleanMob.length >= 10 ? cleanMob.slice(-10) : cleanMob;
+        const withZero = '0' + last10Digits;
+        const withCountry = '+91' + last10Digits;
+
+        [user] = await pool.query(
+          `SELECT * FROM customers 
+           WHERE (email = ? OR mobile = ? OR mobile = ? OR mobile = ? OR mobile = ? OR RIGHT(REPLACE(mobile, ' ', ''), 10) = ?) 
+           AND (status = 'active' OR status IS NULL)`,
+          [inputVal, inputVal, cleanMob, withZero, withCountry, last10Digits]
+        );
         table = 'customers';
         break;
       case 'student':
-        if (!studentId) return res.status(400).json({ success: false, message: 'Student ID is required' });
-        [user] = await pool.query('SELECT * FROM students WHERE student_id = ? AND status = ?', [studentId, 'active']);
+        const studentIdVal = studentId || req.body.student_id || email;
+        if (!studentIdVal) return res.status(400).json({ success: false, message: 'Student ID is required' });
+        [user] = await pool.query('SELECT * FROM students WHERE (student_id = ? OR email = ? OR mobile = ?) AND (status = "active" OR status IS NULL)', [studentIdVal, studentIdVal, studentIdVal]);
         table = 'students';
         break;
       case 'staff':
-        if (!staffId) return res.status(400).json({ success: false, message: 'Staff ID is required' });
-        [user] = await pool.query('SELECT * FROM staff_members WHERE staff_id = ? AND status = ?', [staffId, 'active']);
+        const staffIdVal = staffId || req.body.staff_id || email;
+        if (!staffIdVal) return res.status(400).json({ success: false, message: 'Staff ID is required' });
+        [user] = await pool.query('SELECT * FROM staff_members WHERE (staff_id = ? OR email = ? OR mobile = ?) AND (status = "active" OR status IS NULL)', [staffIdVal, staffIdVal, staffIdVal]);
         table = 'staff_members';
         break;
       default:
@@ -73,12 +82,23 @@ router.post('/login', async (req, res) => {
       passwordValid = false;
     }
 
-    // Fallbacks for student accounts: allow login if provided password matches
-    // the student ID (some older records used student_id as plain-password) or
-    // if the stored password is plain text (not hashed).
-    if (!passwordValid && role === 'student') {
-      if (password === userData.student_id) passwordValid = true;
-      if (!passwordValid && password === userData.password) passwordValid = true;
+    // Fallbacks for stored plain passwords or custom resets
+    if (!passwordValid && password === userData.password) {
+      passwordValid = true;
+    }
+
+    // Fallbacks for student accounts: allow login if provided password matches student_id
+    if (!passwordValid && role === 'student' && password === userData.student_id) {
+      passwordValid = true;
+    }
+
+    // Fallbacks for customer accounts: allow login if provided password matches mobile
+    if (!passwordValid && role === 'customer') {
+      const cleanPass = password.replace(/[\s\-\+\(\)]/g, '');
+      const dbMob = (userData.mobile || '').replace(/[\s\-\+\(\)]/g, '');
+      if (password === userData.mobile || cleanPass === dbMob) {
+        passwordValid = true;
+      }
     }
 
     if (!passwordValid) {

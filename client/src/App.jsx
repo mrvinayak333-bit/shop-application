@@ -32,6 +32,7 @@ import SupportPage from './pages/SupportPage';
 import StudentPrintCertificate from './pages/StudentPrintCertificate';
 import VerifyCertificate from './pages/VerifyCertificate';
 import CourseStorePage from './pages/CourseStorePage';
+import PDFReaderPage from './pages/PDFReaderPage';
 
 
 function App() {
@@ -50,6 +51,7 @@ function App() {
           <Route path="/admin/repair-control" element={<AdminRepairControl />} />
           <Route path="/dashboard/master" element={<MasterDashboard />} />
           <Route path="/dashboard/student" element={<StudentDashboard />} />
+          <Route path="/student/pdf-reader/:bookId" element={<PDFReaderPage />} />
           <Route path="/courses/:courseId" element={<CourseStudyPage />} />
           <Route path="/student/profile" element={<StudentProfilePage />} />
           <Route path="/student/store" element={<CourseStorePage />} />

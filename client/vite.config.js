@@ -18,9 +18,9 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'SHREE RAAM MOBILE',
-        short_name: 'SRM',
-        description: 'Mobile Repair Tracking System',
+        name: 'SRM Mobaile Fixit',
+        short_name: 'SRM Fixit',
+        description: 'IC Level Repairing Specialist & Mobile Repairing Service',
         theme_color: '#166534',
         background_color: '#f9fafb',
         display: 'standalone',

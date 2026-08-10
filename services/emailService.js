@@ -42,14 +42,14 @@ async function sendMailFromTemplate(to, templateKey, replacements) {
 
     const transporter = await getTransporter();
     
-    let subject = 'SHREE RAAM MOBILE Update';
-    if (templateKey.includes('welcome')) subject = 'Welcome to SHREE RAAM MOBILE! 🎉';
+    let subject = 'SRM Mobaile Fixit Update';
+    if (templateKey.includes('welcome')) subject = 'Welcome to SRM Mobaile Fixit! 🎉';
     else if (templateKey.includes('payment')) subject = 'Payment Receipt Acknowledged 💳';
     else if (templateKey.includes('course_approval')) subject = 'Course Enrollment Approved! 📚';
     else if (templateKey.includes('reset')) subject = 'Password Reset Assistance';
 
     const info = await transporter.sendMail({
-      from: `"SHREE RAAM MOBILE" <${sender}>`,
+      from: `"SRM Mobaile Fixit" <${sender}>`,
       to,
       subject,
       text: templateText,

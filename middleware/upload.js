@@ -10,6 +10,7 @@ const uploadDirs = [
   'uploads/courses/images',
   'uploads/courses/documents',
   'uploads/courses/videos',
+  'uploads/courses/zip',
   'uploads/logos',
   'uploads/invoices',
   'uploads/profiles',
@@ -50,6 +51,7 @@ const courseStorage = multer.diskStorage({
     if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) subDir = 'images';
     else if (ext === '.pdf') subDir = 'pdf';
     else if (['.mp4', '.webm', '.ogg', '.mov', '.3gp', '.mkv'].includes(ext)) subDir = 'videos';
+    else if (['.zip', '.rar', '.7z'].includes(ext)) subDir = 'zip';
     cb(null, path.join(__dirname, '..', `uploads/courses/${subDir}`));
   },
   filename: (req, file, cb) => {
@@ -91,11 +93,13 @@ const documentFilter = (req, file, cb) => {
     'application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
     'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'text/plain', 'application/zip',
+    'text/plain',
+    'application/zip', 'application/x-zip-compressed', 'application/x-rar-compressed',
+    'application/x-7z-compressed', 'application/octet-stream',
     'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime', 'video/3gpp', 'video/x-matroska'
   ];
   if (allowed.includes(file.mimetype)) cb(null, true);
-  else cb(new Error('File type not allowed. Please upload images, PDFs, office documents, zip, or video files (MP4, WebM, etc.).'), false);
+  else cb(new Error('File type not allowed. Supported: images, PDFs, office docs, ZIP, videos.'), false);
 };
 
 const accessoryStorage = multer.diskStorage({
@@ -120,7 +124,7 @@ const maxSize = parseInt(process.env.MAX_FILE_SIZE) || 10485760; // 10MB
 module.exports = {
   uploadGallery: multer({ storage: galleryStorage, fileFilter: imageFilter, limits: { fileSize: maxSize } }),
   uploadCertificate: multer({ storage: certificateStorage, fileFilter: certificateFilter, limits: { fileSize: maxSize } }),
-  uploadCourseMaterial: multer({ storage: courseStorage, fileFilter: documentFilter, limits: { fileSize: maxSize } }),
+  uploadCourseMaterial: multer({ storage: courseStorage, fileFilter: documentFilter, limits: { fileSize: 100 * 1024 * 1024 } }), // 100MB for PDFs/videos
   uploadLogo: multer({ storage: logoStorage, fileFilter: imageFilter, limits: { fileSize: 5 * 1024 * 1024 } }),
   uploadRepairPhoto: multer({ storage: repairPhotoStorage, fileFilter: imageFilter, limits: { fileSize: maxSize } }),
   uploadAccessory: multer({ storage: accessoryStorage, fileFilter: imageFilter, limits: { fileSize: maxSize } }),

@@ -480,8 +480,8 @@ INSERT INTO courses (course_name, course_code, description, duration, created_by
 
 -- Default Settings
 INSERT INTO settings (setting_key, setting_value, description) VALUES
-('app_name', 'SHREE RAAM MOBILE', 'Application Name'),
-('welcome_message', 'Welcome to SHREE RAAM MOBILE - Professional Repair Tracking', 'Welcome Message'),
+('app_name', 'SRM Mobaile Fixit', 'Application Name'),
+('welcome_message', 'Welcome to SRM Mobaile Fixit - Professional Repair Tracking', 'Welcome Message'),
 ('logo_path', '/assets/logo.png', 'Application Logo Path'),
 ('otp_enabled', 'true', 'Enable OTP Verification'),
 ('sms_enabled', 'false', 'Enable SMS Notifications'),

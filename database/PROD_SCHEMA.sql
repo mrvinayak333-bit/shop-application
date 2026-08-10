@@ -568,7 +568,7 @@ INSERT IGNORE INTO master_users (id, name, email, password, mobile) VALUES
 (1, 'Vinayak', 'mr.vinayak333@gmail.com', '$2a$10$9EWp6XmNolK447bq1cJEtefLalQKhaFnQsfz0G7WqGw9OqANSxR3u', '919552210333');
 
 INSERT IGNORE INTO settings (setting_key, setting_value, description) VALUES
-('app_name', 'SHREE RAAM MOBAILE', 'Application Name'),
+('app_name', 'SRM Mobaile Fixit', 'Application Name'),
 ('founder', 'Vinayak Sanjay Kumbhar', 'Founder Name'),
 ('contact_mobile', '919552210333', 'Contact Mobile'),
 ('whatsapp_link', 'https://wa.me/919552210333', 'WhatsApp Link');

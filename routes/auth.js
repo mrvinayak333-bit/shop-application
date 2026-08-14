@@ -121,14 +121,16 @@ router.post('/login', async (req, res) => {
       }
     }
 
-    // Update last login
-    await pool.query(`UPDATE ${table} SET last_login = NOW() WHERE ${idField} = ?`, [userData[idField]]);
-
-    // Log activity
-    await pool.query(
-      'INSERT INTO activity_logs (user_id, user_role, action, description) VALUES (?, ?, ?, ?)',
-      [userData[idField], role, 'LOGIN', `${role} logged in successfully`]
-    );
+    // Update last login & activity log (non-fatal if logging table/column is missing)
+    try {
+      await pool.query(`UPDATE ${table} SET last_login = NOW() WHERE ${idField} = ?`, [userData[idField]]);
+      await pool.query(
+        'INSERT INTO activity_logs (user_id, user_role, action, description) VALUES (?, ?, ?, ?)',
+        [userData[idField], role, 'LOGIN', `${role} logged in successfully`]
+      );
+    } catch (logErr) {
+      console.warn('Notice during login activity logging:', logErr.message);
+    }
 
     // Generate token
     const tokenPayload = {

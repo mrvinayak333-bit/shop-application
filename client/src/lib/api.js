@@ -3,15 +3,28 @@ import { Capacitor } from '@capacitor/core';
 export function getApiBase() {
   const configuredBase = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL;
   if (configuredBase) {
-    return configuredBase.replace(/\/$/, '');
+    let base = configuredBase.trim().replace(/\/$/, '');
+    if (!base.endsWith('/api') && !base.includes('/api/')) {
+      base += '/api';
+    }
+    return base;
   }
 
-  if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
+  if (typeof window !== 'undefined') {
     const host = window.location.hostname;
-    if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === 'capacitor') {
-      return 'http://10.0.2.2:5000/api';
+    // Native Capacitor mobile app host
+    if (Capacitor.isNativePlatform()) {
+      if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === 'capacitor') {
+        return 'http://10.0.2.2:5000/api';
+      }
+      return `http://${host}:5000/api`;
     }
-    return `http://${host}:5000/api`;
+    // Render / Cloud static site fallback when VITE_API_URL is omitted
+    if (host.includes('onrender.com') || host.includes('vercel.app') || host.includes('netlify.app')) {
+      if (!host.startsWith('srm-mobaile-fixit.')) {
+        return 'https://srm-mobaile-fixit.onrender.com/api';
+      }
+    }
   }
 
   return '/api';
@@ -33,10 +46,10 @@ async function executeFetch(targetUrl, options, headers) {
     try {
       data = JSON.parse(trimmed);
     } catch (e) {
-      data = {};
+      data = { success: false, message: 'Invalid JSON response from server' };
     }
   } else {
-    data = text;
+    data = { success: false, message: `Server error (${res.status}). Received non-JSON response.` };
   }
 
   if (res.status === 401) {
@@ -44,6 +57,12 @@ async function executeFetch(targetUrl, options, headers) {
     localStorage.removeItem('user');
     if (typeof window !== 'undefined' && window.location.pathname !== '/' && !window.location.pathname.startsWith('/login/')) {
       window.location.href = '/';
+    }
+  }
+
+  if (typeof data === 'object' && data !== null) {
+    if (data.success === undefined) {
+      data.success = res.status >= 200 && res.status < 300;
     }
   }
 

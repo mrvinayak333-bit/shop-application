@@ -10,7 +10,7 @@
     "db-init": "node database/init.js",
     "dev:server": "nodemon server.js",
     "dev:client": "cd client && npm run dev",
-    "build": "cd client && npm run build"
+    "build": "cd client && npm install && npm run build"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

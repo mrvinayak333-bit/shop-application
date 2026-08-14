@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { useParams, useNavigate } from 'react-router-dom';
+import api from '../lib/api';
 import Loading from '../components/Loading';
+import DynamicCertificate from '../components/DynamicCertificate';
 
 export default function PrintCertificate() {
   const { id } = useParams();
-  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [cert, setCert] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -13,18 +14,19 @@ export default function PrintCertificate() {
   useEffect(() => {
     async function fetchCertificate() {
       try {
-        const { data, error: fetchErr } = await supabase
-          .from('generated_certificates')
-          .select('*, students(name), courses(title)')
-          .eq('id', id)
-          .single();
-
-        if (fetchErr || !data) {
-          throw new Error('Certificate not found');
+        const res = await api.get(`/certificate/verify/${id}`);
+        if (res && (res.success || res.certificate)) {
+          setCert(res.certificate);
+        } else {
+          const res2 = await api.get(`/certificate/print/${id}`);
+          if (res2 && res2.success) {
+            setCert(res2.certificate);
+          } else {
+            throw new Error(res2?.message || 'Certificate not found');
+          }
         }
-        setCert(data);
       } catch (err) {
-        setError(err.message);
+        setError(err.message || 'Failed to load certificate');
       } finally {
         setLoading(false);
       }

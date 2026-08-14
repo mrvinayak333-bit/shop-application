@@ -10,7 +10,7 @@ const { creditCommission } = require('./commission_helper');
 // ======================================================================
 
 // 1. Browse Products (Filter by Category and Search query)
-router.get('/products', async (req, res) => {
+const getProductsHandler = async (req, res) => {
   try {
     const { category, search } = req.query;
     let query = "SELECT * FROM accessory_products WHERE status = 'enabled'";
@@ -33,7 +33,10 @@ router.get('/products', async (req, res) => {
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
-});
+};
+
+router.get('/', getProductsHandler);
+router.get('/products', getProductsHandler);
 
 // Fetch all accessory categories
 router.get('/categories', async (req, res) => {

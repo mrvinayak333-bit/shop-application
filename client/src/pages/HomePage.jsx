@@ -147,39 +147,160 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 🔬 SRM MOBAILE FIXIT SPECIALIZATION BADGES RIBBON */}
-      <section className="py-6 px-4 bg-slate-900 border-b border-slate-800 text-white">
-        <div className="max-w-6xl mx-auto grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-slate-950/80 border border-emerald-500/30 p-3.5 rounded-2xl flex items-center gap-3 shadow-md hover:border-emerald-500 transition">
-            <div className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl text-lg font-bold">🔬</div>
-            <div>
-              <h4 className="text-xs font-extrabold text-white">IC Level Repairing</h4>
-              <p className="text-[10px] text-slate-400">Micro-Soldering & Chip Swap</p>
-            </div>
+      {/* 🔬 SRM MOBAILE FIXIT SPECIALIZATION SHOWCASE SECTION */}
+      <section className="py-12 px-4 bg-slate-950 border-b border-slate-800/80 text-white relative overflow-hidden">
+        {/* Background glowing ambient light spheres */}
+        <div className="absolute top-1/2 left-0 -translate-y-1/2 w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-1/2 right-0 -translate-y-1/2 w-72 h-72 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="max-w-6xl mx-auto relative z-10">
+          
+          {/* Header Badge & Title */}
+          <div className="text-center max-w-2xl mx-auto mb-10 space-y-2">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[11px] font-extrabold tracking-wider uppercase backdrop-blur-md">
+              <Sparkles className="w-3.5 h-3.5" /> MASTER SPECIALIZATION CENTER
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+              Why Customers Trust <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400">SRM MOBAILE FIXIT</span>
+            </h2>
+            <p className="text-xs text-slate-400 max-w-lg mx-auto">
+              India's trusted IC-level repairing hub for smartphones and laptops with micro-soldering and genuine OEM spare replacement.
+            </p>
           </div>
 
-          <div className="bg-slate-950/80 border border-emerald-500/30 p-3.5 rounded-2xl flex items-center gap-3 shadow-md hover:border-emerald-500 transition">
-            <div className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl text-lg font-bold">🛠️</div>
-            <div>
-              <h4 className="text-xs font-extrabold text-white">Expert Service</h4>
-              <p className="text-[10px] text-slate-400">Fast Master Diagnosis</p>
-            </div>
-          </div>
+          {/* 4 MASTER CARDS GRID */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            
+            {/* 1. IC Level Repairing */}
+            <div className="group relative bg-slate-900/90 backdrop-blur-xl border border-slate-800 hover:border-emerald-500/60 rounded-3xl p-5 shadow-xl hover:shadow-2xl hover:shadow-emerald-500/10 transition-all duration-500 flex flex-col justify-between overflow-hidden">
+              <div className="absolute -top-12 -right-12 w-28 h-28 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-all duration-500" />
+              
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-500/40 text-emerald-400 flex items-center justify-center text-2xl shadow-lg shadow-emerald-500/10 group-hover:scale-110 transition-transform duration-300">
+                    🔬
+                  </div>
+                  <span className="text-[10px] font-black tracking-widest text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/30 uppercase">
+                    ADVANCED IC
+                  </span>
+                </div>
 
-          <div className="bg-slate-950/80 border border-emerald-500/30 p-3.5 rounded-2xl flex items-center gap-3 shadow-md hover:border-emerald-500 transition">
-            <div className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl text-lg font-bold">🛡️</div>
-            <div>
-              <h4 className="text-xs font-extrabold text-white">Trusted Care</h4>
-              <p className="text-[10px] text-slate-400">100% Genuine Spares</p>
-            </div>
-          </div>
+                <h3 className="text-base font-extrabold text-white mb-1 group-hover:text-emerald-400 transition-colors">
+                  IC Level Repairing
+                </h3>
+                <p className="text-xs font-semibold text-emerald-300/90 mb-3">
+                  Micro-Soldering & Chip Swap
+                </p>
+                <p className="text-[11px] text-slate-400 leading-relaxed mb-4">
+                  Precision motherboard diagnosis, Power IC replacement, CPU BGA reballing, and dead motherboard recovery under ESD-safe lab conditions.
+                </p>
+              </div>
 
-          <div className="bg-slate-950/80 border border-emerald-500/30 p-3.5 rounded-2xl flex items-center gap-3 shadow-md hover:border-emerald-500 transition">
-            <div className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl text-lg font-bold">🤖</div>
-            <div>
-              <h4 className="text-xs font-extrabold text-white">Android Expert Care</h4>
-              <p className="text-[10px] text-slate-400">Samsung, OnePlus, Vivo, Oppo</p>
+              <div className="pt-3 border-t border-slate-800/80 flex items-center gap-2 text-[10px] text-emerald-400 font-bold">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span>CPU & Power IC Reballing</span>
+              </div>
             </div>
+
+            {/* 2. Expert Service */}
+            <div className="group relative bg-slate-900/90 backdrop-blur-xl border border-slate-800 hover:border-teal-500/60 rounded-3xl p-5 shadow-xl hover:shadow-2xl hover:shadow-teal-500/10 transition-all duration-500 flex flex-col justify-between overflow-hidden">
+              <div className="absolute -top-12 -right-12 w-28 h-28 bg-teal-500/10 rounded-full blur-2xl group-hover:bg-teal-500/20 transition-all duration-500" />
+              
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-teal-500/20 to-cyan-500/10 border border-teal-500/40 text-teal-400 flex items-center justify-center text-2xl shadow-lg shadow-teal-500/10 group-hover:scale-110 transition-transform duration-300">
+                    🛠️
+                  </div>
+                  <span className="text-[10px] font-black tracking-widest text-teal-400 bg-teal-500/10 px-2.5 py-1 rounded-full border border-teal-500/30 uppercase">
+                    MASTER LAB
+                  </span>
+                </div>
+
+                <h3 className="text-base font-extrabold text-white mb-1 group-hover:text-teal-400 transition-colors">
+                  Expert Service
+                </h3>
+                <p className="text-xs font-semibold text-teal-300/90 mb-3">
+                  Fast Master Diagnosis
+                </p>
+                <p className="text-[11px] text-slate-400 leading-relaxed mb-4">
+                  High-speed diagnosis using thermal cameras & oscilloscopes. Transparent upfront estimates with fast turnaround time.
+                </p>
+              </div>
+
+              <div className="pt-3 border-t border-slate-800/80 flex items-center gap-2 text-[10px] text-teal-400 font-bold">
+                <CheckCircle2 className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                <span>Thermal Camera Short Finder</span>
+              </div>
+            </div>
+
+            {/* 3. Trusted Care */}
+            <div className="group relative bg-slate-900/90 backdrop-blur-xl border border-slate-800 hover:border-cyan-500/60 rounded-3xl p-5 shadow-xl hover:shadow-2xl hover:shadow-cyan-500/10 transition-all duration-500 flex flex-col justify-between overflow-hidden">
+              <div className="absolute -top-12 -right-12 w-28 h-28 bg-cyan-500/10 rounded-full blur-2xl group-hover:bg-cyan-500/20 transition-all duration-500" />
+              
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-500/10 border border-cyan-500/40 text-cyan-400 flex items-center justify-center text-2xl shadow-lg shadow-cyan-500/10 group-hover:scale-110 transition-transform duration-300">
+                    🛡️
+                  </div>
+                  <span className="text-[10px] font-black tracking-widest text-cyan-400 bg-cyan-500/10 px-2.5 py-1 rounded-full border border-cyan-500/30 uppercase">
+                    100% GENUINE
+                  </span>
+                </div>
+
+                <h3 className="text-base font-extrabold text-white mb-1 group-hover:text-cyan-400 transition-colors">
+                  Trusted Care
+                </h3>
+                <p className="text-xs font-semibold text-cyan-300/90 mb-3">
+                  100% Genuine Spares
+                </p>
+                <p className="text-[11px] text-slate-400 leading-relaxed mb-4">
+                  Only authentic OEM display screens, long-life batteries, camera modules, and original charging connectors with testing warranty.
+                </p>
+              </div>
+
+              <div className="pt-3 border-t border-slate-800/80 flex items-center gap-2 text-[10px] text-cyan-400 font-bold">
+                <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                <span>OEM Certified Spare Parts</span>
+              </div>
+            </div>
+
+            {/* 4. Android Expert Care */}
+            <div className="group relative bg-slate-900/90 backdrop-blur-xl border border-slate-800 hover:border-emerald-400/60 rounded-3xl p-5 shadow-xl hover:shadow-2xl hover:shadow-emerald-500/10 transition-all duration-500 flex flex-col justify-between overflow-hidden">
+              <div className="absolute -top-12 -right-12 w-28 h-28 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-all duration-500" />
+              
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-emerald-400/10 border border-emerald-500/40 text-emerald-400 flex items-center justify-center text-2xl shadow-lg shadow-emerald-500/10 group-hover:scale-110 transition-transform duration-300">
+                    🤖
+                  </div>
+                  <span className="text-[10px] font-black tracking-widest text-emerald-300 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/30 uppercase">
+                    ALL BRANDS
+                  </span>
+                </div>
+
+                <h3 className="text-base font-extrabold text-white mb-1 group-hover:text-emerald-300 transition-colors">
+                  Android Expert Care
+                </h3>
+                <p className="text-xs font-semibold text-emerald-300/90 mb-3">
+                  Samsung, OnePlus, Vivo, Oppo
+                </p>
+                
+                {/* BRAND CHIPS */}
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {['Samsung', 'OnePlus', 'Vivo', 'Oppo', 'Realme', 'Xiaomi'].map((brand, bIdx) => (
+                    <span key={bIdx} className="text-[9px] font-extrabold px-2 py-0.5 rounded-md bg-slate-800/90 text-slate-200 border border-slate-700/80 group-hover:border-emerald-500/40 transition">
+                      {brand}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-800/80 flex items-center gap-2 text-[10px] text-emerald-400 font-bold">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span>Specialized Android Hardware & Software</span>
+              </div>
+            </div>
+
           </div>
         </div>
       </section>

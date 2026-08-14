@@ -163,17 +163,17 @@ router.get('/commission/summary', authenticateToken, authorize('admin', 'master'
   try {
     const [summary] = await pool.query(`
       SELECT 
-        user_id, user_role,
-        CASE WHEN user_role = 'admin' THEN a.name ELSE t.name END as user_name,
+        cl.user_id, cl.user_role,
+        CASE WHEN cl.user_role = 'admin' THEN a.name ELSE t.name END as user_name,
         COUNT(*) as total_transactions,
-        COALESCE(SUM(CASE WHEN status = 'pending' THEN commission_amount ELSE 0 END), 0) as pending_amount,
-        COALESCE(SUM(CASE WHEN status = 'paid' THEN commission_amount ELSE 0 END), 0) as paid_amount,
-        COALESCE(SUM(commission_amount), 0) as total_amount,
-        MAX(payment_date) as last_payment_date
+        COALESCE(SUM(CASE WHEN cl.status = 'pending' THEN cl.commission_amount ELSE 0 END), 0) as pending_amount,
+        COALESCE(SUM(CASE WHEN cl.status = 'paid' THEN cl.commission_amount ELSE 0 END), 0) as paid_amount,
+        COALESCE(SUM(cl.commission_amount), 0) as total_amount,
+        MAX(cl.payment_date) as last_payment_date
       FROM commission_ledger cl
       LEFT JOIN admins a ON cl.user_id = a.id AND cl.user_role = 'admin'
       LEFT JOIN technicians t ON cl.user_id = t.id AND cl.user_role = 'technician'
-      GROUP BY user_id, user_role
+      GROUP BY cl.user_id, cl.user_role
       ORDER BY total_amount DESC
     `);
     res.json({ success: true, summary });

@@ -33,6 +33,11 @@ import StudentPrintCertificate from './pages/StudentPrintCertificate';
 import VerifyCertificate from './pages/VerifyCertificate';
 import CourseStorePage from './pages/CourseStorePage';
 import PDFReaderPage from './pages/PDFReaderPage';
+import CommissionDashboard from './pages/CommissionDashboard';
+import CoursePurchasePage from './pages/CoursePurchasePage';
+import LMSCourseManager from './pages/LMSCourseManager';
+import PrintCertificate from './pages/PrintCertificate';
+import PublicCertificateVerification from './pages/PublicCertificateVerification';
 
 
 function App() {
@@ -49,15 +54,20 @@ function App() {
           <Route path="/dashboard/customer" element={<CustomerDashboard />} />
           <Route path="/dashboard/admin" element={<AdminDashboard />} />
           <Route path="/admin/repair-control" element={<AdminRepairControl />} />
+          <Route path="/admin/commissions" element={<CommissionDashboard />} />
+          <Route path="/admin/lms" element={<LMSCourseManager />} />
           <Route path="/dashboard/master" element={<MasterDashboard />} />
           <Route path="/dashboard/student" element={<StudentDashboard />} />
+          <Route path="/course-purchase" element={<CoursePurchasePage />} />
           <Route path="/student/pdf-reader/:bookId" element={<PDFReaderPage />} />
           <Route path="/courses/:courseId" element={<CourseStudyPage />} />
           <Route path="/student/profile" element={<StudentProfilePage />} />
           <Route path="/student/store" element={<CourseStorePage />} />
           <Route path="/student/support" element={<SupportPage />} />
           <Route path="/print-certificate/:id" element={<StudentPrintCertificate />} />
+          <Route path="/print-certificate-full/:id" element={<PrintCertificate />} />
           <Route path="/verify-certificate/:certNumber" element={<VerifyCertificate />} />
+          <Route path="/verify-certificate-public/:certNumber" element={<PublicCertificateVerification />} />
           <Route path="/enrolled-courses" element={<EnrolledCourses />} />
           <Route path="/courses" element={<CoursesPage />} />
           <Route path="/repair/register" element={<RepairRegister />} />

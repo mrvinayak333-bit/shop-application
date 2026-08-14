@@ -100,12 +100,26 @@ export default function Navbar() {
             )}
 
             {isAuthenticated && ['master', 'admin', 'staff'].includes(user?.role) && (
-              <Link 
-                to="/dashboard/collection"
-                className="px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition"
-              >
-                Payment Collection
-              </Link>
+              <>
+                <Link 
+                  to="/dashboard/collection"
+                  className="px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition"
+                >
+                  Collection
+                </Link>
+                <Link 
+                  to="/admin/commissions"
+                  className="px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition"
+                >
+                  Commissions
+                </Link>
+                <Link 
+                  to="/admin/lms"
+                  className="px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition"
+                >
+                  LMS Courses
+                </Link>
+              </>
             )}
 
             {isAuthenticated && ['admin', 'staff', 'technician'].includes(user?.role) && (
@@ -118,9 +132,14 @@ export default function Navbar() {
             )}
 
             {isAuthenticated && (user?.role === 'master' || user?.role === 'student') && (
-              <Link to="/enrolled-courses" className="px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition">
-                Enrolled Courses
-              </Link>
+              <>
+                <Link to="/enrolled-courses" className="px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition">
+                  Enrolled Courses
+                </Link>
+                <Link to="/course-purchase" className="px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition">
+                  Buy Courses
+                </Link>
+              </>
             )}
 
             {/* Staff & Student Dropdown */}

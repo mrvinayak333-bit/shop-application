@@ -37,7 +37,7 @@ router.get('/verify/:id', async (req, res) => {
     if (!searchCode) return res.status(400).json({ success: false, message: 'Certificate ID or Verification Code is required' });
 
     const [[cert]] = await pool.query(
-      `SELECT c.*, s.student_id as student_code_val, s.email, s.phone
+      `SELECT c.*, s.student_id as student_code_val, s.email, s.mobile as phone, s.mobile
        FROM certificates c
        LEFT JOIN students s ON c.student_id = s.id
        WHERE c.certificate_id = ? OR c.verification_code = ? OR c.id = ?`,
@@ -150,7 +150,7 @@ router.get('/pending', authenticateToken, authorize('master', 'admin'), async (r
   try {
     const [rows] = await pool.query(
       `SELECT gc.id, gc.student_id, gc.course_id, gc.certificate_number, gc.issue_date, gc.status, gc.created_at,
-              s.name as student_name, s.student_id as student_code, s.email, s.phone,
+              s.name as student_name, s.student_id as student_code, s.email, s.mobile as phone, s.mobile,
               c.title as course_name, c.duration as course_duration
        FROM generated_certificates gc
        JOIN students s ON gc.student_id = s.id
@@ -305,7 +305,7 @@ router.get('/list', authenticateToken, authorize('master', 'admin'), async (req,
   try {
     const { search, course_id, status, grade } = req.query;
     let query = `
-      SELECT c.*, s.student_id as student_code, s.email, s.phone
+      SELECT c.*, s.student_id as student_code, s.email, s.mobile as phone, s.mobile
       FROM certificates c
       LEFT JOIN students s ON c.student_id = s.id
       WHERE 1=1
@@ -313,7 +313,7 @@ router.get('/list', authenticateToken, authorize('master', 'admin'), async (req,
     const params = [];
 
     if (search) {
-      query += ` AND (c.student_name LIKE ? OR s.student_id LIKE ? OR c.certificate_id LIKE ? OR s.phone LIKE ?)`;
+      query += ` AND (c.student_name LIKE ? OR s.student_id LIKE ? OR c.certificate_id LIKE ? OR s.mobile LIKE ?)`;
       const term = `%${search.trim()}%`;
       params.push(term, term, term, term);
     }
@@ -350,7 +350,7 @@ router.get('/auto-fill/:student_id', authenticateToken, authorize('master', 'adm
   try {
     const studentId = req.params.student_id;
     const [[student]] = await pool.query(
-      'SELECT id, name, student_id, email, phone, course_name, duration, created_at FROM students WHERE id = ? OR student_id = ?',
+      'SELECT id, name, student_id, email, mobile as phone, mobile, course_name, duration, created_at FROM students WHERE id = ? OR student_id = ?',
       [studentId, studentId]
     );
 
@@ -373,7 +373,7 @@ router.get('/auto-fill/:student_id', authenticateToken, authorize('master', 'adm
         name: student.name,
         student_id: student.student_id,
         email: student.email,
-        phone: student.phone,
+        phone: student.phone || student.mobile,
         default_course: student.course_name || 'Android & iPhone IC-Level Repairing Course',
         default_duration: student.duration || '25 Days',
         enrolled_courses: courses

@@ -10,9 +10,12 @@
     "db-init": "node database/init.js",
     "dev:server": "nodemon server.js",
     "dev:client": "npm --prefix client run dev",
-    "build": "npm --prefix client install && npm --prefix client run build"
+    "build": "npm --prefix client install && npm --prefix client run build",
+    "deploy": "npx wrangler deploy --assets=client/dist",
+    "deploy:pages": "npm run build && npx wrangler pages deploy client/dist"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.112.3",
     "bcryptjs": "^2.4.3",
     "body-parser": "^1.20.2",
     "compression": "^1.7.4",
@@ -29,6 +32,7 @@
     "mysql2": "^3.6.5",
     "node-cron": "^3.0.3",
     "nodemailer": "^6.9.7",
+    "pg": "^8.23.0",
     "qrcode": "^1.5.3",
     "twilio": "^4.20.0",
     "uuid": "^9.0.0",

@@ -35,7 +35,7 @@ export default defineConfig({
     https: serverHttps,
     watch: {
       // Ignore Android native build output to avoid EBUSY file-lock errors
-      ignored: ['android/**', '**/android/**/build/**']
+      ignored: ['**/android/**', '**/android/**/assets/**', '**/android/app/src/main/assets/**']
     },
     proxy: {
       '/api': {

@@ -1,4 +1,5 @@
 import { Capacitor } from '@capacitor/core';
+import { handleOfflineRequest } from './offlineDb';
 
 export function getApiBase() {
   const configuredBase = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL;
@@ -12,14 +13,12 @@ export function getApiBase() {
 
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
-    // Native Capacitor mobile app host
     if (Capacitor.isNativePlatform()) {
       if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === 'capacitor') {
         return 'http://10.0.2.2:5000/api';
       }
       return `http://${host}:5000/api`;
     }
-    // Cloud static site fallback (Cloudflare Pages, Vercel, Netlify, Render) when VITE_API_URL is omitted
     if (host.includes('pages.dev') || host.includes('cloudflare') || host.includes('onrender.com') || host.includes('vercel.app') || host.includes('netlify.app')) {
       if (!host.startsWith('srm-mobaile-fixit.')) {
         return 'https://srm-mobaile-fixit.onrender.com/api';
@@ -82,29 +81,31 @@ async function request(url, options = {}) {
     headers['Content-Type'] = 'application/json';
   }
 
+  const parseBody = () => {
+    if (!options.body) return null;
+    if (typeof options.body === 'string') {
+      try { return JSON.parse(options.body); } catch (e) { return options.body; }
+    }
+    return options.body;
+  };
+
+  // Standalone Native APK OR Offline -> Serve 100% locally from Offline DB
+  if (Capacitor.isNativePlatform() || (typeof window !== 'undefined' && !window.navigator.onLine)) {
+    return handleOfflineRequest(url, options.method || 'GET', parseBody(), headers);
+  }
+
   const cleanPath = url.startsWith('/') ? url : `/${url}`;
   const primaryUrl = `${API_BASE}${cleanPath}`;
 
   try {
-    return await executeFetch(primaryUrl, options, headers);
-  } catch (error) {
-    console.warn(`Primary API request to ${primaryUrl} failed:`, error.message);
-    
-    // Automatic fallback for local browser development if primary proxy/base fails
-    if (typeof window !== 'undefined' && !Capacitor.isNativePlatform()) {
-      const fallbackUrl = primaryUrl.startsWith('/api') 
-        ? `http://127.0.0.1:5000${cleanPath.startsWith('/api') ? cleanPath : `/api${cleanPath}`}`
-        : `/api${cleanPath}`;
-
-      try {
-        console.log(`Retrying API call with fallback: ${fallbackUrl}`);
-        return await executeFetch(fallbackUrl, options, headers);
-      } catch (fallbackError) {
-        console.error('Fallback API request failed:', fallbackError);
-      }
+    const res = await executeFetch(primaryUrl, options, headers);
+    if (!res.success && res.message && (res.message.includes('Network error') || res.message.includes('Failed to fetch') || res.message.includes('Server error'))) {
+      return handleOfflineRequest(url, options.method || 'GET', parseBody(), headers);
     }
-
-    return { success: false, message: 'Network error. Please check the server connection and try again.' };
+    return res;
+  } catch (error) {
+    console.warn(`API request to ${primaryUrl} failed. Switching to Standalone Offline DB Engine:`, error.message);
+    return handleOfflineRequest(url, options.method || 'GET', parseBody(), headers);
   }
 }
 

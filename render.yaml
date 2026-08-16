@@ -8,8 +8,8 @@ services:
     env: node
     region: singapore # or oregon / frankfurt
     plan: free
-    buildCommand: npm install --include=dev && npm run build
-    startCommand: npm start
+    buildCommand: npm install && npm run build
+    startCommand: node server.js
     healthCheckPath: /api/repair/public-stats
     autoDeploy: true
     envVars:

@@ -244,6 +244,13 @@ async function runMigrations() {
       }
     }
 
+    // Course duration column migration
+    try {
+      await pool.query("ALTER TABLE courses ADD COLUMN duration VARCHAR(50) DEFAULT '25 Days'");
+    } catch (e) {
+      if (!e.message.includes('Duplicate column')) console.log('Courses duration col skip:', e.message);
+    }
+
     // Create student_last_activity for "Continue Learning" feature
     await pool.query(`CREATE TABLE IF NOT EXISTS student_last_activity (
       id INT AUTO_INCREMENT PRIMARY KEY,

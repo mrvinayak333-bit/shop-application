@@ -151,7 +151,7 @@ router.get('/pending', authenticateToken, authorize('master', 'admin'), async (r
     const [rows] = await pool.query(
       `SELECT gc.id, gc.student_id, gc.course_id, gc.certificate_number, gc.issue_date, gc.status, gc.created_at,
               s.name as student_name, s.student_id as student_code, s.email, s.mobile as phone, s.mobile,
-              c.title as course_name, c.duration as course_duration
+              c.title as course_name, COALESCE(c.duration, '25 Days') as course_duration
        FROM generated_certificates gc
        JOIN students s ON gc.student_id = s.id
        LEFT JOIN courses c ON gc.course_id = c.id
@@ -174,7 +174,7 @@ router.post('/approve/:pending_id', authenticateToken, authorize('master'), asyn
 
     // Get pending request record
     const [[pending]] = await pool.query(
-      `SELECT gc.*, s.name as student_name, s.student_id as student_code, c.title as course_name, c.duration as course_duration
+      `SELECT gc.*, s.name as student_name, s.student_id as student_code, c.title as course_name, COALESCE(c.duration, '25 Days') as course_duration
        FROM generated_certificates gc
        JOIN students s ON gc.student_id = s.id
        LEFT JOIN courses c ON gc.course_id = c.id
@@ -359,7 +359,7 @@ router.get('/auto-fill/:student_id', authenticateToken, authorize('master', 'adm
     }
 
     const [courses] = await pool.query(
-      `SELECT c.id, c.title, c.duration, cp.status, cp.completion_date, cp.grade
+      `SELECT c.id, c.title, COALESCE(c.duration, '25 Days') as duration, cp.status, cp.completion_date, cp.grade
        FROM courses c
        JOIN course_progress cp ON c.id = cp.course_id
        WHERE cp.student_id = ?`,

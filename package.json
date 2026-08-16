@@ -9,8 +9,8 @@
     "dev:https": "set USE_HTTPS=true&& set VITE_HTTPS=true&& npm run dev",
     "db-init": "node database/init.js",
     "dev:server": "nodemon server.js",
-    "dev:client": "cd client && npm run dev",
-    "build": "cd client && npm install --include=dev && npm run build"
+    "dev:client": "npm --prefix client run dev",
+    "build": "npm --prefix client install && npm --prefix client run build"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

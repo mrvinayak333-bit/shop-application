@@ -92,6 +92,10 @@ app.use('/api/laptop-repair', laptopRepairRoutes);
 app.use('/api/accessories', accessoriesRoutes);
 app.use('/api/collection', collectionRoutes);
 
+// Health Check Endpoint for Render & Monitoring
+app.get('/health', (req, res) => res.json({ status: 'ok' }));
+app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
+
 // Serve Frontend Pages
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/login/:role', (req, res) => {
@@ -114,7 +118,7 @@ dashboardRoles.forEach(role => {
 
 if (fs.existsSync(reactDist)) {
   app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+    if (req.path === '/health' || req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
       return next();
     }
     res.sendFile(path.join(reactDist, 'index.html'));

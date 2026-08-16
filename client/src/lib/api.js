@@ -19,8 +19,8 @@ export function getApiBase() {
       }
       return `http://${host}:5000/api`;
     }
-    // Render / Cloud static site fallback when VITE_API_URL is omitted
-    if (host.includes('onrender.com') || host.includes('vercel.app') || host.includes('netlify.app')) {
+    // Cloud static site fallback (Cloudflare Pages, Vercel, Netlify, Render) when VITE_API_URL is omitted
+    if (host.includes('pages.dev') || host.includes('cloudflare') || host.includes('onrender.com') || host.includes('vercel.app') || host.includes('netlify.app')) {
       if (!host.startsWith('srm-mobaile-fixit.')) {
         return 'https://srm-mobaile-fixit.onrender.com/api';
       }
